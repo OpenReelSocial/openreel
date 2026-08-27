@@ -1,0 +1,17 @@
+name: Feature
+description: New capability or enhancement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: What should exist
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Definition of done
+      description: Observable, testable outcome.
+    validations: { required: true }
+  - type: input
+    attributes:
+      label: Depends on
+      placeholder: "E4-05, E5-02"

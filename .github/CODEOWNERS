@@ -1,0 +1,18 @@
+*                             @ZackMurry @AndrewLHellman
+
+/packages/lexicons/           @AndrewLHellman
+/services/feedgen/            @AndrewLHellman
+/services/appview/            @ZackMurry @AndrewLHellman
+/services/relay/              @ZackMurry
+/services/pds/                @ZackMurry
+/services/labeler/            @ZackMurry
+/services/classifier/         @gabeedwards1 @AndrewLHellman
+/services/gateway/            @jersey-gh
+
+/apps/ios/                    @Hfarah-1 @gabeedwards1
+/apps/ios/Packages/OpenReelNetworking/  @joe520088 @jersey-gh
+/apps/ios/Packages/OpenReelPlayer/      @Hfarah-1
+
+/infra/                       @Hfarah-1 @ZackMurry
+/.github/workflows/           @joe520088 @ZackMurry
+/docs/adr/                    @AndrewLHellman

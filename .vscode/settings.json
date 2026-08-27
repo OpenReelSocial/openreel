@@ -1,0 +1,13 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "biomejs.biome",
+  "[python]": { "editor.defaultFormatter": "charliermarsh.ruff" },
+  "[swift]": { "editor.defaultFormatter": "sswg.swift-lang" },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.turbo": true,
+    "**/packages/lex-types-ts": true
+  }
+}

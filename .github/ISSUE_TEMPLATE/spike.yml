@@ -1,0 +1,17 @@
+name: Spike
+description: Time-boxed investigation, output is a decision
+labels: ["spike"]
+body:
+  - type: textarea
+    attributes:
+      label: Question to answer
+    validations: { required: true }
+  - type: input
+    attributes:
+      label: Time box
+      placeholder: "4 hours"
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Output
+      value: "An ADR in docs/adr/ recording the decision and its rationale."

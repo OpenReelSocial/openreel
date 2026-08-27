@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "charliermarsh.ruff",
+    "swiftlang.swift-vscode",
+    "ms-azuretools.vscode-docker",
+    "editorconfig.editorconfig",
+    "github.vscode-github-actions"
+  ]
+}

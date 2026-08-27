@@ -1,0 +1,23 @@
+name: Bug
+description: Something behaves incorrectly
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Expected
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make dev
+        2. ...
+  - type: dropdown
+    attributes:
+      label: Area
+      options: [iOS, AppView, Feed Generator, PDS/Relay, Classifier, Infra/CI, Lexicons]
+    validations: { required: true }
