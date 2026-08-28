@@ -23,6 +23,7 @@ Different sources are authoritative for different questions:
 
 - **Assigned GitHub issue / task:** defines the requested outcome, scope, dependencies, and acceptance criteria.
 - **Accepted ADRs (`docs/adr/`):** govern architectural and other durable technical decisions.
+- **Current engineering documentation (`docs/architecture/`, `docs/requirements/`, and similar focused docs when present):** describes the current intended system design and requirements. These documents may evolve through ordinary pull requests but do not override accepted ADRs for decisions those ADRs govern.
 - **Published Lexicons / protocol contracts:** govern externally visible AT Protocol schemas and compatibility expectations.
 - **Current code, tests, and configuration:** define implemented behavior.
 - **Project documentation report:** provides broad product, research, and architecture context, but some implementation details may be stale as the project evolves.
@@ -30,20 +31,16 @@ Different sources are authoritative for different questions:
 
 When these sources conflict, do not silently choose one. Determine whether they govern different concerns; otherwise flag the conflict in the issue or PR.
 
-### Known superseded documentation
+### Superseded Material
 
-Accepted ADR-0001 supersedes older project-document references to the `io.openreel.*` namespace.
+Reference and planning documents may contain stale implementation details.
 
-Current decisions are:
+Do not maintain a manual list of superseded statements in this file. Use the source-of-truth rules above to determine what currently governs a decision.
 
-- Domain: `openreel.social`
-- Lexicon namespace: `social.openreel.*`
-- iOS bundle identifier: `social.openreel.ios`
-- GitHub organization: `OpenReelSocial`
+If an older reference conflicts with an accepted ADR, current protocol contract, current engineering documentation, or implemented behavior, treat the older material as historical context.
 
-Do not introduce new `io.openreel.*` identifiers.
+If the conflict is not clearly resolved by a current repository source, surface it rather than guessing.
 
-The project documentation also currently contains inconsistent Cloudflare/CloudFront wording. Until an accepted ADR or implementation decision resolves that inconsistency, do not treat either CDN choice as authoritative merely because one appears in a particular section.
 
 ## Repository Shape
 
@@ -207,20 +204,59 @@ Prefer preparing reviewed code/configuration that lets the normal human/CI proce
 
 ## Documentation and ADRs
 
-Keep durable decisions durable.
+Keep durable context in the repository so humans and fresh-context agents can work without relying on private chat history or meetings.
+
+`docs/README.md` defines the repository documentation model.
+
+### Current vs. reference documentation
+
+Treat focused current engineering documentation and imported/reference documentation differently.
+
+* `docs/architecture/`, `docs/requirements/`, and similar focused documents describe the current intended system when those documents exist.
+* `docs/reference/` contains imported, historical, or otherwise non-canonical design context.
+* The original OpenReel project plan/report should be treated as reference material even when it contains useful and detailed implementation ideas.
+
+Reference material may inform implementation, but it does not override accepted ADRs, public protocol contracts, current engineering documentation, code/tests/configuration, or the scope and acceptance criteria of the assigned issue.
+
+Do not ignore reference documentation merely because it is non-canonical. Search it when working in an area it discusses; it may contain important product requirements, research context, edge cases, or design rationale.
+
+If reference material conflicts with current repository sources, surface or resolve the discrepancy rather than silently choosing one.
+
+### Promote relevant design context as work reaches it
+
+Do not attempt to normalize the entire historical project plan before development can proceed.
+
+When implementation reaches an area that currently exists only in reference documentation:
+
+1. Read the relevant reference material.
+2. Compare its assumptions with current ADRs, code, protocol contracts, and task requirements.
+3. Identify stale, contradictory, or unresolved decisions.
+4. Resolve durable architectural choices through an ADR when appropriate.
+5. Create or update focused current documentation if future contributors will need the resulting design context.
+6. Implement against the reconciled current design.
+
+This allows documentation to become more precise alongside the implementation without preserving outdated planning assumptions as accidental requirements.
+
+### ADR usage
 
 Use ADRs when a change establishes or replaces a meaningful architectural decision, such as:
 
-- major infrastructure choices,
-- persistence or queue technologies,
-- protocol/namespace decisions,
-- service boundary changes,
-- externally visible compatibility decisions,
-- deployment patterns that constrain future work.
+* major infrastructure choices,
+* persistence or queue technologies,
+* protocol/namespace decisions,
+* service boundary changes,
+* externally visible compatibility decisions,
+* deployment patterns that constrain future work.
 
 Do not create ADRs for ordinary implementation details that are easy to change and do not constrain the architecture.
 
-The large OpenReel project documentation is an important design/reference source, but the project is intentionally agile. When implementation evidence or an accepted ADR supersedes a document detail, prefer updating the durable decision rather than preserving an outdated implementation assumption.
+When implementation evidence or a new accepted ADR supersedes an older document detail, update the appropriate current documentation. Preserve historical/reference material as historical context unless there is a specific reason to revise it.
+
+### External project documentation
+
+External artifacts such as the OpenReel Google Doc may remain useful as reports or stakeholder-facing documents, but they are not a second independently authoritative engineering specification.
+
+Technical decisions should be captured in repository sources first. External reports can be updated periodically from current repository documentation.
 
 ## Definition of Done
 
