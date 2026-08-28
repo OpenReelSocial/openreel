@@ -4,6 +4,23 @@ OpenReel uses a lightweight, trunk-oriented workflow. Work starts from `main`, p
 
 The pull request is the durable record of a change. Reviews are encouraged, especially for architecture, infrastructure, security-sensitive code, and public Lexicons, but the capstone workflow does not require an approval or Code Owner review for every merge.
 
+## VS Code workflow
+
+The repository recommends the GitHub Pull Requests and Issues extension. After installing the workspace recommendations and signing in to GitHub, routine work can stay in VS Code:
+
+1. Open the GitHub Issues view, select the assigned issue, and choose **Start Working on Issue**. The extension creates and checks out a task-based branch from `main`.
+2. Make the scoped changes.
+3. Open Source Control, review the changed files, stage the intended files with the `+` button, enter a focused commit message, and select **Commit**.
+4. Select **Publish Branch**.
+5. Open the GitHub Pull Requests view, select **Create Pull Request**, complete the repository template, and create the pull request against `main`.
+6. Review the pull request and use **Merge Pull Request** when it is ready. Squash is the repository's only enabled merge method.
+
+VS Code fetches remote updates in the background and prunes remote-tracking branches that GitHub has deleted. It does not automatically stage or commit changes; explicit staging keeps unrelated work out of the commit.
+
+If changes were accidentally started on `main`, select `main` in the status bar and choose **Create new branch** before committing. The working changes will follow to the new branch.
+
+The command-line instructions below remain the recovery path and are useful for automation or diagnosing Git problems.
+
 ## Branches
 
 Use one task or issue per branch where practical. Keep branches short-lived and delete them after merge.
