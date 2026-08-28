@@ -69,6 +69,30 @@ By default, an existing `[DEV-xxx]` issue is never rewritten. That protects huma
 
 This tool does not automatically close issues when YAML says `done`, change assignees, or synchronize arbitrary issue state. It is a seed/import tool, not a bidirectional tracker.
 
+## Issue labels
+
+Labels communicate task readiness, execution state, and the areas affected by an issue. Label names and descriptions are authoritative; colors are only visual aids.
+
+### Readiness and execution state
+
+- `agent-ready` — executable by an unfamiliar contributor or fresh-context coding agent using the issue and repository sources, without relying on undocumented chat, meeting, or personal context. The issue should identify the desired outcome, scope, dependencies, relevant durable context, and observable acceptance criteria.
+- `blocked` — cannot make meaningful progress because a specific dependency, decision, or external condition is unresolved. Record the blocking condition in the issue.
+- `needs-human` — requires a human-only decision, permission, credential, approval, or external action. Apply it alongside `blocked` when that human action prevents further progress.
+
+`agent-ready` means the task is sufficiently documented, not that it is trivial or suitable for unsupervised merging. Remove it if later discussion exposes missing context that materially changes the work.
+
+### Areas
+
+- `architecture` — establishes, changes, or reviews a durable architectural decision; an ADR is usually relevant.
+- `infra` — affects infrastructure-as-code, deployment, CI/CD, environments, or shared operational tooling.
+- `backend` — affects server-side services, APIs, data processing, or shared backend packages.
+- `ios` — affects the native iOS client or its Swift packages.
+- `lexicon` — affects public AT Protocol schemas, compatibility, or generated Lexicon bindings.
+
+Area labels may be combined when a task crosses boundaries. `architecture` is cross-cutting rather than mutually exclusive with the component labels.
+
+The existing `dev-infra` label is retained as a marker applied by the structured backlog seeding workflow. It is not the infrastructure area label; use `infra` for that purpose.
+
 ## Agent usage
 
 A human can tell a coding agent:
