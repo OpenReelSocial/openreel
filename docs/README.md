@@ -63,6 +63,7 @@ docs/
 ├── roadmap/
 │   └── development-plan.md
 ├── agent/
+│   ├── git-workflow.md
 │   └── task-workflow.md
 └── adr/
 ```

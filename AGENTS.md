@@ -112,7 +112,9 @@ If multiple agents are working concurrently, avoid overlapping edits to shared h
 
 The intended workflow is trunk-oriented with short-lived branches and review through pull requests.
 
-- Do not push directly to `main` unless a maintainer explicitly asks for that exception.
+`docs/agent/git-workflow.md` documents the contributor workflow and the GitHub settings that enforce it.
+
+- Do not push directly to `main`; repository administrators also use pull requests.
 - Prefer one task/issue per branch.
 - Prefer clear branch names such as `feature/42-appview-health` or `fix/81-player-audio`.
 - Keep commits and diffs focused.
