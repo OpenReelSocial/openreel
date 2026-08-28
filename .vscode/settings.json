@@ -9,9 +9,10 @@
   "git.pruneOnFetch": true,
   "githubIssues.issueBranchTitle": "feature/${issueNumber}-${sanitizedLowercaseIssueTitle}",
   "githubIssues.useBranchForIssues": "on",
+  "githubPullRequests.deleteBranchAfterMerge": true,
   "search.exclude": {
     "**/node_modules": true,
     "**/.turbo": true,
     "**/packages/lex-types-ts": true
-  }
+  },
 }
