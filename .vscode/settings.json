@@ -5,6 +5,10 @@
   "[swift]": { "editor.defaultFormatter": "swiftlang.swift-vscode" },
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
+  "git.autofetch": true,
+  "git.pruneOnFetch": true,
+  "githubIssues.issueBranchTitle": "feature/${issueNumber}-${sanitizedLowercaseIssueTitle}",
+  "githubIssues.useBranchForIssues": "on",
   "search.exclude": {
     "**/node_modules": true,
     "**/.turbo": true,
