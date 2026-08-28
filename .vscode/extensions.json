@@ -3,8 +3,11 @@
     "biomejs.biome",
     "charliermarsh.ruff",
     "swiftlang.swift-vscode",
-    "ms-azuretools.vscode-docker",
+    "ms-azuretools.vscode-containers",
+    "docker.docker",
     "editorconfig.editorconfig",
-    "github.vscode-github-actions"
+    "redhat.vscode-yaml",
+    "github.vscode-github-actions",
+    "github.vscode-pull-request-github"
   ]
 }

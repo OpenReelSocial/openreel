@@ -1,0 +1,86 @@
+name: Seed task backlog
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: Structured task YAML path
+        required: true
+        default: docs/dev-environment-tasks.yaml
+        type: string
+      phase:
+        description: Optional exact phase filter
+        required: false
+        type: string
+      ids:
+        description: Optional comma-separated task IDs
+        required: false
+        type: string
+      limit:
+        description: Maximum number of selected tasks (0 = unlimited)
+        required: true
+        default: "0"
+        type: string
+      update_existing:
+        description: Rewrite already-seeded managed issues from YAML
+        required: true
+        default: false
+        type: boolean
+      apply:
+        description: Actually write issues (false = dry run)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install importer dependency
+        run: python -m pip install --disable-pip-version-check PyYAML
+
+      - name: Seed GitHub Issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_FILE: ${{ inputs.file }}
+          TASK_PHASE: ${{ inputs.phase }}
+          TASK_IDS: ${{ inputs.ids }}
+          TASK_LIMIT: ${{ inputs.limit }}
+          UPDATE_EXISTING: ${{ inputs.update_existing }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+
+          args=(--file "$TASK_FILE" --repo "$GITHUB_REPOSITORY" --label "dev-infra")
+
+          if [[ -n "$TASK_PHASE" ]]; then
+            args+=(--phase "$TASK_PHASE")
+          fi
+
+          if [[ -n "$TASK_IDS" ]]; then
+            args+=(--ids "$TASK_IDS")
+          fi
+
+          if [[ "$TASK_LIMIT" != "0" ]]; then
+            args+=(--limit "$TASK_LIMIT")
+          fi
+
+          if [[ "$UPDATE_EXISTING" == "true" ]]; then
+            args+=(--update-existing)
+          fi
+
+          if [[ "$APPLY" == "true" ]]; then
+            args+=(--apply)
+          fi
+
+          python scripts/github/seed_issues.py "${args[@]}"

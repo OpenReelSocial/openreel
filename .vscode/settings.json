@@ -2,7 +2,7 @@
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "biomejs.biome",
   "[python]": { "editor.defaultFormatter": "charliermarsh.ruff" },
-  "[swift]": { "editor.defaultFormatter": "sswg.swift-lang" },
+  "[swift]": { "editor.defaultFormatter": "swiftlang.swift-vscode" },
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
   "search.exclude": {

@@ -1,0 +1,1028 @@
+project: OpenReel
+artifact: Development and Agent Infrastructure Backlog
+version: 1
+status_values:
+- todo
+- in_progress
+- blocked
+- done
+- deferred
+priority_values:
+- critical
+- high
+- medium
+- low
+usage:
+  principle: Treat this as an agile backlog, not a fixed specification. Revisit later tasks as architecture becomes
+    concrete.
+  agent_prompt_example: Implement DEV-016 from docs/dev-environment-tasks.yaml. Inspect its dependencies and acceptance
+    criteria first. Inspect the existing repository before changing anything, make no unrelated changes, run available
+    validation, and report blockers rather than inventing missing requirements.
+  workflow:
+  - Select one task or a tightly coupled batch.
+  - Confirm dependencies are satisfied or explicitly defer unresolved dependencies.
+  - Use one task per branch/worktree where practical.
+  - Implement only the requested scope.
+  - Run the task's relevant validation and the repository's canonical make check once available.
+  - Open or prepare a reviewable PR and record unresolved blockers in durable GitHub artifacts.
+tasks:
+- id: DEV-001
+  title: Create root AGENTS.md
+  phase: repository-foundation
+  priority: critical
+  status: todo
+  dependencies: []
+  description: Create canonical repository-level instructions for humans and coding agents working on OpenReel.
+  acceptance_criteria:
+  - Explains OpenReel at a high level and points to authoritative project documentation and ADRs.
+  - Defines the source-of-truth hierarchy and tells agents to surface conflicts rather than guess.
+  - Defines Git/PR, security, scope-control, and verification expectations.
+  - Clearly distinguishes commands and infrastructure that exist from those that are only planned.
+  agent_notes:
+  - Inspect the repository before editing.
+  - Do not duplicate vendor-specific instructions here unless they apply to all agents.
+- id: DEV-002
+  title: Improve GitHub issue template for agent-ready tasks
+  phase: repository-foundation
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-001
+  description: Improve GitHub issue template for agent-ready tasks
+  acceptance_criteria:
+  - Template includes Problem, Desired Outcome, Scope, Out of Scope, Dependencies, Relevant ADRs/Docs, Acceptance
+    Criteria, and optional Implementation Notes.
+  - Template is useful to both humans and fresh-context agents.
+  agent_notes: []
+- id: DEV-003
+  title: Establish GitHub task labels
+  phase: repository-foundation
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-002
+  description: Establish GitHub task labels
+  acceptance_criteria:
+  - Document labels including agent-ready, blocked, needs-human, architecture, infra, backend, ios, and lexicon.
+  - Define agent-ready as executable without undocumented context.
+  agent_notes:
+  - If repository permissions/tooling do not permit label creation, document the desired labels and report the required
+    admin action.
+- id: DEV-004
+  title: Configure and document Git workflow
+  phase: repository-foundation
+  priority: critical
+  status: todo
+  dependencies: []
+  description: Configure and document Git workflow
+  acceptance_criteria:
+  - Document short-lived branches and one-task-per-branch/worktree convention.
+  - Use PR-only changes to main and squash merging as the intended workflow.
+  - Identify any branch-protection/ruleset settings that require repository admin configuration.
+  agent_notes:
+  - Do not encode the labor source (human/agent) in branch names; prefer feature/<issue>-<slug> or fix/<issue>-<slug>.
+- id: DEV-005
+  title: Record foundational technology decisions
+  phase: architecture
+  priority: high
+  status: todo
+  dependencies: []
+  description: Record foundational technology decisions
+  acceptance_criteria:
+  - Necessary decisions are recorded as ADRs rather than only in chat.
+  - Covers backend runtime/package manager/IaC/CDN and owned-vs-reused ATProto components where decisions are actually
+    ready.
+  - Avoids speculative ADRs for decisions that are not yet needed.
+  agent_notes: []
+- id: DEV-006
+  title: Initialize root Node and pnpm workspace
+  phase: workspace
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-005
+  description: Initialize root Node and pnpm workspace
+  acceptance_criteria:
+  - Root package.json exists.
+  - pnpm-workspace.yaml covers intended service/package locations.
+  - pnpm lockfile is committed.
+  - Node and pnpm versions are pinned.
+  - No empty-directory placeholder forest is created.
+  agent_notes: []
+- id: DEV-007
+  title: Establish shared TypeScript configuration
+  phase: workspace
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-006
+  description: Establish shared TypeScript configuration
+  acceptance_criteria:
+  - A strict reusable base TypeScript configuration exists.
+  - Services/packages can extend and override it cleanly.
+  agent_notes: []
+- id: DEV-008
+  title: Configure backend formatting and linting
+  phase: workspace
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-007
+  description: Configure backend formatting and linting
+  acceptance_criteria:
+  - Workspace-level formatting and linting are configured.
+  - Root commands exist for format, format-check, and lint.
+  agent_notes: []
+- id: DEV-009
+  title: Configure backend unit-test framework
+  phase: workspace
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-007
+  description: Configure backend unit-test framework
+  acceptance_criteria:
+  - Jest or Vitest is configured.
+  - A trivial test demonstrates root-level discovery/execution of package tests.
+  agent_notes: []
+- id: DEV-010
+  title: Establish configuration conventions
+  phase: workspace
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-006
+  description: Establish configuration conventions
+  acceptance_criteria:
+  - .env.example exists without real secrets.
+  - Local vs cloud configuration is documented.
+  - Environment-variable naming conventions are defined.
+  - Validated shared configuration is introduced only when a real consumer exists.
+  agent_notes: []
+- id: DEV-011
+  title: Create root Makefile
+  phase: developer-experience
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-006
+  description: Create root Makefile
+  acceptance_criteria:
+  - Makefile exposes only commands that currently work.
+  - It is designed to become the stable human/agent interface over underlying tools.
+  agent_notes: []
+- id: DEV-012
+  title: Implement make bootstrap
+  phase: developer-experience
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-011
+  description: Implement make bootstrap
+  acceptance_criteria:
+  - Bootstrap validates required tool versions.
+  - Installs pnpm dependencies.
+  - Produces clear actionable failures when system prerequisites are missing.
+  agent_notes: []
+- id: DEV-013
+  title: Pin and configure XcodeGen
+  phase: ios
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-012
+  description: Pin and configure XcodeGen
+  acceptance_criteria:
+  - XcodeGen is reproducibly versioned/configured.
+  - apps/ios/project.yml or equivalent exists.
+  - make ios-generate generates the ignored Xcode project.
+  agent_notes: []
+- id: DEV-014
+  title: Scaffold minimal iOS application
+  phase: ios
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-013
+  description: Scaffold minimal iOS application
+  acceptance_criteria:
+  - Minimal SwiftUI OpenReel app builds.
+  - Unit-test target exists.
+  - Dev configuration exists.
+  - Generated .xcodeproj remains uncommitted.
+  agent_notes: []
+- id: DEV-015
+  title: Configure Swift formatting and linting
+  phase: ios
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-014
+  description: Configure Swift formatting and linting
+  acceptance_criteria:
+  - Chosen Swift formatting/linting tools are pinned/configured.
+  - Checks are runnable from the command line without Xcode GUI interaction.
+  agent_notes: []
+- id: DEV-016
+  title: Scaffold AppView service
+  phase: services
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-007
+  - DEV-009
+  - DEV-010
+  description: Scaffold AppView service
+  acceptance_criteria:
+  - services/appview is a real workspace package.
+  - Service starts successfully.
+  - GET /health returns HTTP 200.
+  agent_notes: []
+- id: DEV-017
+  title: Add AppView tests
+  phase: services
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-016
+  description: Add AppView tests
+  acceptance_criteria:
+  - Health behavior has automated coverage.
+  - Tests run from both package and repository root.
+  agent_notes: []
+- id: DEV-018
+  title: Scaffold Feed Generator service
+  phase: services
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-007
+  - DEV-009
+  - DEV-010
+  description: Scaffold Feed Generator service
+  acceptance_criteria:
+  - services/feedgen is a real workspace package.
+  - Service starts successfully.
+  - GET /health returns HTTP 200.
+  agent_notes: []
+- id: DEV-019
+  title: Add Feed Generator tests
+  phase: services
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-018
+  description: Add Feed Generator tests
+  acceptance_criteria:
+  - Health behavior has automated coverage.
+  - Tests run from both package and repository root.
+  agent_notes: []
+- id: DEV-020
+  title: Establish backend service conventions
+  phase: services
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-016
+  - DEV-018
+  description: Establish backend service conventions
+  acceptance_criteria:
+  - Only genuinely duplicated configuration/logging/testing conventions are factored out.
+  - No unnecessary internal framework is introduced.
+  agent_notes: []
+- id: DEV-021
+  title: Add PostgreSQL to Docker Compose
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-010
+  description: Add PostgreSQL to Docker Compose
+  acceptance_criteria:
+  - compose.yaml contains a pinned PostgreSQL service.
+  - Healthcheck and persistent dev volume exist.
+  - Development credentials come from configuration rather than hardcoded production secrets.
+  agent_notes: []
+- id: DEV-022
+  title: Add Redis to Docker Compose
+  phase: local-development
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-021
+  description: Add Redis to Docker Compose
+  acceptance_criteria:
+  - Redis image is pinned.
+  - Healthcheck exists.
+  - Persistence behavior is explicitly chosen.
+  agent_notes: []
+- id: DEV-023
+  title: Containerize AppView
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-016
+  - DEV-021
+  description: Containerize AppView
+  acceptance_criteria:
+  - AppView Dockerfile builds.
+  - Container uses Compose service discovery rather than hardcoded host addresses.
+  agent_notes: []
+- id: DEV-024
+  title: Containerize Feed Generator
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-018
+  - DEV-021
+  description: Containerize Feed Generator
+  acceptance_criteria:
+  - Feedgen Dockerfile builds.
+  - Conventions remain consistent with AppView where appropriate.
+  agent_notes: []
+- id: DEV-025
+  title: Add AppView and Feedgen to Compose
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-022
+  - DEV-023
+  - DEV-024
+  description: Add AppView and Feedgen to Compose
+  acceptance_criteria:
+  - Both services run through Compose.
+  - Dependency-aware startup/healthchecks are configured.
+  - Initial stack becomes healthy from a clean start.
+  agent_notes: []
+- id: DEV-026
+  title: Implement local development commands
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-025
+  - DEV-011
+  description: Implement local development commands
+  acceptance_criteria:
+  - make dev starts the stack.
+  - make stop stops it.
+  - make reset resets disposable local state with clear destructive semantics.
+  - make logs exposes useful service logs.
+  agent_notes: []
+- id: DEV-027
+  title: Verify clean local bootstrap
+  phase: local-development
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-012
+  - DEV-026
+  description: Verify clean local bootstrap
+  acceptance_criteria:
+  - A clean checkout reaches healthy AppView/Feedgen/Postgres/Redis using documented commands.
+  - No undocumented manual intervention is required.
+  agent_notes: []
+- id: DEV-028
+  title: Establish database migration tooling
+  phase: database
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-027
+  description: Establish database migration tooling
+  acceptance_criteria:
+  - Migration tool is selected consistently with the DB stack.
+  - Initial migration exists.
+  - make db-migrate and make db-reset exist.
+  - Shared schema changes are represented as committed migrations.
+  agent_notes: []
+- id: DEV-029
+  title: Establish deterministic development seed data
+  phase: database
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-028
+  description: Establish deterministic development seed data
+  acceptance_criteria:
+  - Seed mechanism is reproducible.
+  - Fake development data is sufficient for early backend/client development.
+  - Reset-and-reseed is easy.
+  agent_notes: []
+- id: DEV-030
+  title: Establish Lexicon workspace
+  phase: lexicons
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-006
+  - DEV-005
+  description: Establish Lexicon workspace
+  acceptance_criteria:
+  - packages/lexicons exists because real Lexicon/tooling content has landed.
+  - ATProto Lexicon validation/generation tooling is configured.
+  agent_notes: []
+- id: DEV-031
+  title: Implement make lex
+  phase: lexicons
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-030
+  - DEV-011
+  description: Implement make lex
+  acceptance_criteria:
+  - make lex validates Lexicons.
+  - Expected bindings/artifacts are generated reproducibly.
+  agent_notes: []
+- id: DEV-032
+  title: Add Lexicon contract tests
+  phase: lexicons
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-031
+  description: Add Lexicon contract tests
+  acceptance_criteria:
+  - Representative valid records pass.
+  - Representative invalid records fail.
+  - Compatibility expectations can be extended later.
+  agent_notes: []
+- id: DEV-033
+  title: Add Lexicon-specific AGENTS.md
+  phase: agent-infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-031
+  - DEV-001
+  description: Add Lexicon-specific AGENTS.md
+  acceptance_criteria:
+  - Explains that Lexicons are public protocol contracts.
+  - Generated files are identified as generated.
+  - Requires compatibility consideration and make lex.
+  - Potentially breaking changes require explicit human review.
+  agent_notes: []
+- id: DEV-034
+  title: Create first GitHub Actions PR workflow
+  phase: ci
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-008
+  - DEV-009
+  description: Create first GitHub Actions PR workflow
+  acceptance_criteria:
+  - Dependencies install reproducibly.
+  - Formatting, linting, typechecking, and backend unit tests run on PRs.
+  agent_notes: []
+- id: DEV-035
+  title: Add classifier Python CI when classifier exists
+  phase: ci
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-034
+  description: Add classifier Python CI when classifier exists
+  acceptance_criteria:
+  - Task is deferred until a real classifier package exists.
+  - When implemented, Python version/dependencies/Ruff/pytest are reproducible.
+  agent_notes: []
+- id: DEV-036
+  title: Add iOS CI
+  phase: ci
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-014
+  - DEV-034
+  description: Add iOS CI
+  acceptance_criteria:
+  - GitHub macOS runner generates the Xcode project.
+  - iOS build and unit tests run using documented command-line commands.
+  agent_notes: []
+- id: DEV-037
+  title: Add Lexicon validation to CI
+  phase: ci
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-031
+  - DEV-034
+  description: Add Lexicon validation to CI
+  acceptance_criteria:
+  - CI validates Lexicons.
+  - CI detects stale generated artifacts.
+  agent_notes: []
+- id: DEV-038
+  title: Implement canonical make check
+  phase: developer-experience
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-034
+  - DEV-036
+  - DEV-037
+  description: Implement canonical make check
+  acceptance_criteria:
+  - make check is the canonical pre-PR verification entrypoint.
+  - It runs appropriate non-mutating formatting/lint/typecheck/test/Lexicon checks.
+  - Failures are actionable.
+  agent_notes: []
+- id: DEV-039
+  title: Update AGENTS.md with real commands
+  phase: agent-infrastructure
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-038
+  - DEV-001
+  description: Update AGENTS.md with real commands
+  acceptance_criteria:
+  - Planned commands are replaced with actual commands.
+  - Agents are told to run make check before completion.
+  - Agents are explicitly prohibited from weakening checks/tests merely to pass.
+  agent_notes: []
+- id: DEV-040
+  title: Make stable CI checks required on main
+  phase: ci
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-038
+  - DEV-004
+  description: Make stable CI checks required on main
+  acceptance_criteria:
+  - Stable important checks are required before merge.
+  - Any admin-only GitHub settings are documented if they cannot be configured automatically.
+  agent_notes: []
+- id: DEV-041
+  title: Establish integration-test harness
+  phase: integration-testing
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-027
+  description: Establish integration-test harness
+  acceptance_criteria:
+  - tests/integration exists with real test content.
+  - Setup/teardown is deterministic.
+  - Tests can target the Compose environment.
+  agent_notes: []
+- id: DEV-042
+  title: Integrate upstream/reference PDS locally
+  phase: atproto
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-041
+  - DEV-005
+  description: Integrate upstream/reference PDS locally
+  acceptance_criteria:
+  - Chosen upstream PDS implementation/version is pinned.
+  - Configuration is reproducible.
+  - PDS is clearly treated as reused infrastructure unless an ADR says otherwise.
+  agent_notes: []
+- id: DEV-043
+  title: Integrate Relay/event infrastructure locally
+  phase: atproto
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-042
+  - DEV-005
+  description: Integrate Relay/event infrastructure locally
+  acceptance_criteria:
+  - Relay/event infrastructure is reproducible and pinned.
+  - Reference implementations are preferred where appropriate.
+  agent_notes: []
+- id: DEV-044
+  title: Add ATProto integration-test helpers
+  phase: integration-testing
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-043
+  description: Add ATProto integration-test helpers
+  acceptance_criteria:
+  - Helpers exist for test account creation, record writes, event observation, AppView querying, and feed querying
+    as needed.
+  agent_notes: []
+- id: DEV-045
+  title: Build first full golden-path integration test
+  phase: integration-testing
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-044
+  - DEV-016
+  - DEV-018
+  description: Build first full golden-path integration test
+  acceptance_criteria:
+  - Automated test verifies record write -> PDS -> Relay -> AppView -> Feed Generator -> expected result.
+  - Failure identifies the broken stage where practical.
+  agent_notes: []
+- id: DEV-046
+  title: Run integration tests in CI
+  phase: ci
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-045
+  - DEV-034
+  description: Run integration tests in CI
+  acceptance_criteria:
+  - CI starts required isolated services.
+  - Runs golden path.
+  - Tears services down.
+  - Preserves useful failure logs/artifacts.
+  agent_notes: []
+- id: DEV-047
+  title: Make CI errors agent-friendly
+  phase: agent-infrastructure
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-046
+  description: Make CI errors agent-friendly
+  acceptance_criteria:
+  - Common failures produce actionable messages.
+  - Generated-file mismatches state the corrective command where appropriate.
+  agent_notes: []
+- id: DEV-048
+  title: Initialize AWS CDK
+  phase: infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-027
+  - DEV-005
+  description: Initialize AWS CDK
+  acceptance_criteria:
+  - infra contains CDK v2 TypeScript application.
+  - Dev environment and naming/tagging conventions are established.
+  agent_notes: []
+- id: DEV-049
+  title: Add infrastructure AGENTS.md
+  phase: agent-infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-048
+  - DEV-001
+  description: Add infrastructure AGENTS.md
+  acceptance_criteria:
+  - Requires IaC for infrastructure changes.
+  - Requires least privilege and cdk synth.
+  - New infrastructure primitives require architectural consideration.
+  - Destructive operations and production deploys require explicit human approval.
+  agent_notes: []
+- id: DEV-050
+  title: Define initial AWS media infrastructure
+  phase: infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-048
+  description: Define initial AWS media infrastructure
+  acceptance_criteria:
+  - S3 and CloudFront are represented in CDK.
+  - Origin/security configuration avoids public bucket exposure unless explicitly required.
+  agent_notes: []
+- id: DEV-051
+  title: Define ECR and backend compute
+  phase: infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-048
+  description: Define ECR and backend compute
+  acceptance_criteria:
+  - Container repositories and chosen dev compute model are defined in CDK.
+  - Scope is shared dev, not premature production complexity.
+  agent_notes: []
+- id: DEV-052
+  title: Define shared dev data infrastructure
+  phase: infrastructure
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-048
+  description: Define shared dev data infrastructure
+  acceptance_criteria:
+  - Required remote PostgreSQL/Redis resources are defined if justified by the chosen architecture.
+  - Cost implications are considered.
+  agent_notes: []
+- id: DEV-053
+  title: Define IAM configuration and secrets through IaC
+  phase: infrastructure
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-048
+  - DEV-051
+  description: Define IAM configuration and secrets through IaC
+  acceptance_criteria:
+  - Service identities use least privilege.
+  - Secrets/config use appropriate AWS managed mechanisms.
+  - No credentials are committed.
+  agent_notes: []
+- id: DEV-054
+  title: Add infrastructure Make targets
+  phase: infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-048
+  - DEV-011
+  description: Add infrastructure Make targets
+  acceptance_criteria:
+  - make infra-synth works.
+  - make infra-diff works.
+  - Commands are documented.
+  agent_notes: []
+- id: DEV-055
+  title: Add CDK synth to PR CI
+  phase: ci
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-054
+  - DEV-034
+  description: Add CDK synth to PR CI
+  acceptance_criteria:
+  - Infrastructure changes synthesize in CI.
+  - Synthesis failures block affected PRs once stable.
+  agent_notes: []
+- id: DEV-056
+  title: Configure GitHub to AWS OIDC
+  phase: deployment
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-053
+  description: Configure GitHub to AWS OIDC
+  acceptance_criteria:
+  - GitHub deployment workflows obtain short-lived AWS credentials through OIDC.
+  - Permanent AWS CI keys are unnecessary.
+  agent_notes: []
+- id: DEV-057
+  title: Audit and enable secret scanning
+  phase: security
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-004
+  description: Audit and enable secret scanning
+  acceptance_criteria:
+  - Repository/history is checked for accidental credentials.
+  - Available GitHub secret-scanning protections are enabled or required admin steps documented.
+  agent_notes: []
+- id: DEV-058
+  title: Build production-style service images
+  phase: deployment
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-023
+  - DEV-024
+  - DEV-051
+  description: Build production-style service images
+  acceptance_criteria:
+  - Images build deterministically enough for CI.
+  - Images can be pushed to ECR.
+  - Images are tagged/traceable by Git SHA.
+  agent_notes: []
+- id: DEV-059
+  title: Create shared-dev deployment workflow
+  phase: deployment
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-055
+  - DEV-056
+  - DEV-058
+  description: Create shared-dev deployment workflow
+  acceptance_criteria:
+  - Merge to main can build/test/push immutable images and deploy shared dev.
+  - Workflow waits for health and runs smoke tests.
+  agent_notes: []
+- id: DEV-060
+  title: Enforce agent-to-deployment boundary
+  phase: agent-infrastructure
+  priority: critical
+  status: todo
+  dependencies:
+  - DEV-059
+  - DEV-049
+  description: Enforce agent-to-deployment boundary
+  acceptance_criteria:
+  - Normal coding agents produce code/PRs rather than directly deploying production.
+  - Shared-cloud deployment occurs through authenticated CI/CD.
+  - Persistent production credentials are not required by ordinary coding agents.
+  agent_notes: []
+- id: DEV-061
+  title: Expose running service version information
+  phase: deployment
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-058
+  description: Expose running service version information
+  acceptance_criteria:
+  - Health/version information exposes the running Git SHA or equivalent immutable version.
+  agent_notes: []
+- id: DEV-062
+  title: Configure iOS mock local and dev environments
+  phase: ios
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-014
+  - DEV-026
+  - DEV-059
+  description: Configure iOS mock local and dev environments
+  acceptance_criteria:
+  - Client can explicitly select mock, local Compose, and shared dev endpoints without editing source URLs.
+  agent_notes: []
+- id: DEV-063
+  title: Verify simulator to local backend
+  phase: ios
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-062
+  description: Verify simulator to local backend
+  acceptance_criteria:
+  - iOS simulator successfully communicates with the local development stack.
+  agent_notes: []
+- id: DEV-064
+  title: Verify physical device to shared dev backend
+  phase: ios
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-062
+  description: Verify physical device to shared dev backend
+  acceptance_criteria:
+  - Physical development device can communicate with shared dev using documented setup.
+  agent_notes: []
+- id: DEV-065
+  title: Establish structured logging conventions
+  phase: observability
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-020
+  description: Establish structured logging conventions
+  acceptance_criteria:
+  - Logs include service, operation/context, correlation/request ID where applicable, and version information.
+  agent_notes: []
+- id: DEV-066
+  title: Add basic CloudWatch logging and alarms
+  phase: observability
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-059
+  - DEV-065
+  description: Add basic CloudWatch logging and alarms
+  acceptance_criteria:
+  - Shared dev logs are accessible.
+  - Basic unhealthy-service/5xx/dependency failure signals exist without overbuilding observability.
+  agent_notes: []
+- id: DEV-067
+  title: Add lightweight pre-commit hooks if useful
+  phase: developer-experience
+  priority: low
+  status: todo
+  dependencies:
+  - DEV-038
+  description: Add lightweight pre-commit hooks if useful
+  acceptance_criteria:
+  - Hooks remain fast.
+  - They focus on cheap formatting/lint/secret/large-file mistakes.
+  - CI remains authoritative.
+  agent_notes: []
+- id: DEV-068
+  title: Add optional agent worktree helper
+  phase: agent-infrastructure
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-004
+  description: Add optional agent worktree helper
+  acceptance_criteria:
+  - If concurrent agent work is common, a documented/scripted path creates an isolated worktree/branch for an issue.
+  - No helper is added if it provides no benefit over documented git worktree commands.
+  agent_notes: []
+- id: DEV-069
+  title: Document concurrent-agent rules
+  phase: agent-infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-001
+  - DEV-068
+  description: Document concurrent-agent rules
+  acceptance_criteria:
+  - One task per branch/worktree is documented.
+  - Shared hotspot files are identified.
+  - Overlapping agent changes require intentional coordination.
+  agent_notes: []
+- id: DEV-070
+  title: Establish agent handoff and blocking conventions
+  phase: agent-infrastructure
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-002
+  - DEV-003
+  - DEV-001
+  description: Establish agent handoff and blocking conventions
+  acceptance_criteria:
+  - Agents record unresolved blockers/ambiguity in durable GitHub artifacts.
+  - Agents do not silently invent architecture to bypass blockers.
+  - GitHub Issues/PRs are treated as shared durable task state.
+  agent_notes: []
+- id: DEV-071
+  title: Audit root AGENTS.md after platform stabilizes
+  phase: agent-infrastructure
+  priority: medium
+  status: todo
+  dependencies:
+  - DEV-039
+  - DEV-070
+  description: Audit root AGENTS.md after platform stabilizes
+  acceptance_criteria:
+  - Obsolete/planned information is removed.
+  - Current commands/ADRs/source hierarchy are accurate.
+  - File remains concise and actionable.
+  agent_notes: []
+- id: DEV-072
+  title: Add nested AGENTS.md files only where justified
+  phase: agent-infrastructure
+  priority: low
+  status: todo
+  dependencies:
+  - DEV-071
+  description: Add nested AGENTS.md files only where justified
+  acceptance_criteria:
+  - Nested instructions exist only for domains with real additional constraints.
+  - Root rules are not needlessly duplicated.
+  agent_notes: []
+- id: DEV-073
+  title: Add thin vendor-specific agent configuration if useful
+  phase: agent-infrastructure
+  priority: low
+  status: todo
+  dependencies:
+  - DEV-071
+  description: Add thin vendor-specific agent configuration if useful
+  acceptance_criteria:
+  - Codex/Claude/Copilot-specific configuration is added only for vendor-specific behavior.
+  - Canonical shared project truth remains in AGENTS.md, ADRs, code, and issues.
+  agent_notes: []
+- id: DEV-074
+  title: Consider specialist agent configurations
+  phase: agent-infrastructure
+  priority: low
+  status: todo
+  dependencies:
+  - DEV-073
+  description: Consider specialist agent configurations
+  acceptance_criteria:
+  - Specialists are introduced only where a generic coding agent is insufficient.
+  - Tool permissions/context are narrower where appropriate.
+  agent_notes: []
+- id: DEV-075
+  title: Create representative agent regression tasks
+  phase: agent-evaluation
+  priority: low
+  status: todo
+  dependencies:
+  - DEV-071
+  description: Create representative agent regression tasks
+  acceptance_criteria:
+  - A small set of representative tasks tests whether fresh-context agents follow OpenReel architecture, Lexicon,
+    and verification rules.
+  - No elaborate eval platform is built without demonstrated need.
+  agent_notes: []
+- id: DEV-076
+  title: Perform fresh-context onboarding acceptance test
+  phase: developer-experience
+  priority: high
+  status: todo
+  dependencies:
+  - DEV-071
+  - DEV-027
+  - DEV-038
+  description: Perform fresh-context onboarding acceptance test
+  acceptance_criteria:
+  - A fresh human or coding-agent context can take an agent-ready issue from clone through bootstrap, implementation,
+    checks, and reviewable PR.
+  - No undocumented tribal knowledge is required.
+  agent_notes: []

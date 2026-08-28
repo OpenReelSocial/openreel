@@ -1,0 +1,89 @@
+name: Task
+description: Bounded implementation work with enough context for a human or coding agent
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write this so a contributor with no meeting/chat context can execute it from the repository alone.
+        Durable architecture decisions belong in ADRs; this issue should link them rather than restating them.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Problem / desired outcome
+      description: What is missing or wrong, and what observable outcome should exist?
+      placeholder: Explain the problem and the intended result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What work is included in this task?
+      placeholder: |
+        - Included change 1
+        - Included change 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Explicitly name adjacent work that should not be pulled into this task.
+      placeholder: |
+        - Do not redesign ...
+        - Do not deploy ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable, testable conditions for completion.
+      placeholder: |
+        - [ ] Behavior/result 1
+        - [ ] Behavior/result 2
+        - [ ] Relevant validation passes
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issue numbers, task IDs, PRs, or "None".
+      placeholder: "#12, DEV-016, or None"
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Relevant ADRs / docs
+      description: Link durable project context that constrains this task.
+      placeholder: |
+        - docs/adr/0001-domain-and-lexicon-namespace.md
+        - Relevant design section / protocol docs
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation_notes
+    attributes:
+      label: Implementation notes
+      description: Optional hints, constraints, likely files, or known pitfalls. Prefer outcomes over prescribing an unnecessary solution.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness
+      options:
+        - label: This issue contains enough durable context for an unfamiliar contributor or fresh-context coding agent to start without relying on private chat or meeting context.
+          required: true
