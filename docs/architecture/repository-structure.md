@@ -32,9 +32,10 @@ openreel/
 │   │   ├── vitest.config.ts
 │   │   └── .env.example
 │   ├── feedgen/               # same shape                             DEV-018/024
-│   ├── admin/                 # internal status page, loopback-bound only
+│   └── admin/                 # internal status page, loopback-bound only
+├── infra/
 │   └── pds/                   # upstream PDS: config + ops, no app code
-│       ├── compose.yaml       #   overlay, layered by 'make up-atproto'
+│       ├── compose.yaml       #   overlay, layered in by 'make up'
 │       ├── scripts/           #   generate-secrets.sh
 │       └── .env.example
 ├── docs/
@@ -73,21 +74,24 @@ Each appears when the owning task is implemented.
 | `apps/ios/Packages/OpenReelNetworking/` | Swift package for protocol + API access | — |
 | `apps/ios/Packages/OpenReelPlayer/` | Swift package for AVFoundation/HLS playback | — |
 | `packages/lexicons/` | `social.openreel.*` Lexicon JSON and generated bindings | E4-01 |
-| `infra/` | Not started. AWS CDK v2 TypeScript app plus `infra/AGENTS.md` | DEV-048/049 |
+| `infra/*.ts`, `infra/lib/` | AWS CDK v2 TypeScript app plus `infra/AGENTS.md`. Not started | DEV-048/049 |
 | `services/gateway/` | Client/backend gateway, **if** the boundary proves necessary | — |
 | `services/labeler/` | Moderation labeling service | — |
-| `services/relay/` | Relay/firehose configuration; upstream implementation | — |
-| `services/pds/` | PDS configuration beyond the Compose service | — |
+| `infra/relay/` | Relay/firehose configuration, if OpenReel operates one. Upstream implementation, so it belongs beside `infra/pds/` | — |
 | `services/classifier/` | Python + Ruff + pytest; its own `pyproject.toml` | DEV-035 |
 | `services/*/Dockerfile`, `.dockerignore` | Per-service container builds | DEV-023/024 |
 | `patches/` | pnpm patch files, only once one is actually needed | — |
 
 ## Conventions
 
-**Operated vs. authored services.** `services/` holds both. `appview`, `feedgen`,
-and `admin` are OpenReel code. `pds` is the upstream `bluesky-social` image, so its
-directory holds configuration, a Compose overlay, and operational scripts rather
-than application code. `relay` is expected to follow the same pattern.
+**Operated vs. authored components.** `services/` holds code OpenReel writes —
+`appview`, `feedgen`, `admin`. Components the project runs but does not author live
+under `infra/` instead, because what we own for them is deployment configuration
+and operational tooling rather than source. `infra/pds/` is the first: a Compose
+overlay, an `.env.example`, and a secret-generation script wrapped around the
+upstream `bluesky-social` image. A relay, if OpenReel operates one, belongs there
+too. `infra/` therefore covers both infrastructure-as-code and the configuration
+for operated third-party components.
 
 **Service internals.** Every backend service exposes `createApp()` in
 `src/app.ts` returning a configured Express app without binding a port, and
@@ -118,6 +122,13 @@ case.
 `make check` is the pre-PR gate. `pnpm` and `turbo` are implementation details
 behind it, and only working targets are exposed.
 
+`make up` is the whole stack — Postgres, Redis, AppView, Feed Generator, admin,
+and the PDS — and finishes by printing the status report, so one command both
+starts the system and shows whether it came up. `make up-core` omits the PDS for
+work that does not need it; the status page then reports the PDS down, which is
+expected rather than a failure. `make down` passes `--remove-orphans` so it also
+stops the PDS, which is an orphan relative to the root `compose.yaml`.
+
 ## Relationship to the reference layout
 
 This structure was adapted from an existing Python-oriented monorepo. The mapping
@@ -135,7 +146,7 @@ deliberate rather than accidental.
 | `tools`, `dev` | `scripts/` | Folded together rather than three overlapping directories |
 | `biome.json` | `.prettierrc.json`, `eslint.config.mjs` | Per ADR-0002 |
 | `pyproject.toml`, `uv.lock` | `package.json`, `pnpm-lock.yaml` | A `pyproject.toml` appears under `services/classifier/` later |
-| `docker-compose.yml` + `.dev.yml` | `compose.yaml` + `services/pds/compose.yaml` | Two files, as in the reference. Compose interpolates every service in a file regardless of profile, so the PDS's required-variable guards must live in a separate overlay that a plain `make up` never parses |
+| `docker-compose.yml` + `.dev.yml` | `compose.yaml` + `infra/pds/compose.yaml` | Two files, as in the reference. Compose interpolates every service in a file regardless of profile, so the PDS's required-variable guards must live in a separate overlay that a plain `make up` never parses |
 | `.env.op-local`, `.env.op-prod` | `.env.example` + ignored `.env` | No secret-manager integration chosen yet |
 | `AGENTS.md`, `README.md` | same | Adopted |
 | `CLAUDE.md` | `CLAUDE.md` | A one-line `@AGENTS.md` import, so Claude Code picks up the same instructions without a second copy to keep in sync |

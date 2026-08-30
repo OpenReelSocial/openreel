@@ -7,10 +7,11 @@ SHELL := /bin/bash
 
 NODE_VERSION := $(shell cat .nvmrc)
 
-# The PDS lives in its own file and env file so a plain 'make up' does not need
-# its secrets; see services/pds/compose.yaml.
-COMPOSE_ATPROTO := docker compose -f compose.yaml -f services/pds/compose.yaml \
-	--env-file .env --env-file services/pds/.env
+# The PDS is a separate Compose file with its own env file, because Compose
+# interpolates every service in a file regardless of profile and the PDS declares
+# required secrets. 'make up-core' therefore never parses it.
+COMPOSE_FULL := docker compose -f compose.yaml -f infra/pds/compose.yaml \
+	--env-file .env --env-file infra/pds/.env
 
 .PHONY: help
 help: ## Show available targets
@@ -21,7 +22,7 @@ help: ## Show available targets
 bootstrap: check-tools ## Install workspace dependencies
 	pnpm install --frozen-lockfile
 	@test -f .env || { cp .env.example .env; echo "Created .env from .env.example"; }
-	@test -f services/pds/.env || { cp services/pds/.env.example services/pds/.env; echo "Created services/pds/.env - run 'make pds-secrets' before 'make up-atproto'."; }
+	@test -f infra/pds/.env || { cp infra/pds/.env.example infra/pds/.env; echo "Created infra/pds/.env"; }
 
 .PHONY: check-tools
 check-tools: ## Verify required system prerequisites
@@ -76,12 +77,24 @@ dev: ## Run services in watch mode
 	pnpm run dev
 
 .PHONY: up
-up: ## Build and start Postgres, Redis, AppView, Feed Generator, and admin
-	docker compose up -d --build
+up: pds-secrets ## Build and start the whole stack, then report status
+	$(COMPOSE_FULL) up -d --build
+	@$(MAKE) --no-print-directory wait
+	@$(MAKE) --no-print-directory status
 
-.PHONY: up-atproto
-up-atproto: pds-secrets ## Start Postgres, Redis, and the PDS
-	$(COMPOSE_ATPROTO) up -d
+.PHONY: up-core
+up-core: ## Start everything except the PDS (no PDS secrets required)
+	docker compose up -d --build
+	@echo
+	@echo "Started without the PDS, so 'make status' will report it down."
+	@echo "Use 'make up' for the full stack."
+
+.PHONY: wait
+wait: ## Block until containers finish starting (used by 'make up')
+	@for i in $$(seq 1 60); do \
+		health=$$($(COMPOSE_FULL) ps --format '{{.Health}}' 2>/dev/null | tr '\n' ' '); \
+		case "$$health" in *starting*|"") sleep 2 ;; *) break ;; esac; \
+	done
 
 .PHONY: status
 status: ## Print local service status (admin page: http://localhost:3003)
@@ -89,15 +102,17 @@ status: ## Print local service status (admin page: http://localhost:3003)
 
 .PHONY: pds-secrets
 pds-secrets: ## Generate local PDS development secrets
-	@services/pds/scripts/generate-secrets.sh
+	@infra/pds/scripts/generate-secrets.sh
 
 .PHONY: pds-logs
 pds-logs: ## Follow PDS logs
-	$(COMPOSE_ATPROTO) logs -f pds
+	$(COMPOSE_FULL) logs -f pds
 
 .PHONY: down
-down: ## Stop containers, keep volumes
-	docker compose down
+down: ## Stop every container in the project, keep volumes
+	# --remove-orphans also removes the PDS, which is defined in infra/pds and so
+	# is an orphan relative to compose.yaml alone. Without it the PDS survives.
+	docker compose down --remove-orphans
 
 .PHONY: clean
 clean: ## Remove build output and caches

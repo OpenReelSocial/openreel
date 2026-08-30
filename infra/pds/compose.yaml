@@ -1,7 +1,8 @@
-# Personal Data Server, layered onto the root compose.yaml by 'make up-atproto'.
+# Personal Data Server, layered onto the root compose.yaml by 'make up'.
 #
-# OpenReel operates the upstream bluesky-social PDS rather than authoring one, so
-# this directory holds configuration and operational tooling, not application code.
+# Lives under infra/ rather than services/ because OpenReel does not author this
+# component; the directory holds deployment configuration and operational tooling.
+#
 # See docs/adr/0002-foundational-technology-stack.md.
 #
 # Kept out of the root compose.yaml because Compose interpolates every service in
@@ -11,7 +12,7 @@
 services:
   # Upstream Bluesky PDS, operated rather than authored by OpenReel. It keeps its
   # own SQLite repositories and blob store under PDS_DATA_DIRECTORY and does not
-  # use the postgres service above.
+  # use the postgres service from the root compose.yaml.
   pds:
     image: ghcr.io/bluesky-social/pds:0.4
     restart: unless-stopped

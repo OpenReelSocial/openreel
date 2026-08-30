@@ -1,9 +1,9 @@
 # Local development topology. Not a production deployment descriptor; production
 # infrastructure is defined as code under infra/ (see DEV-048).
 #
-#   make up          start Postgres and Redis
-#   make up-atproto  additionally start the PDS (compose.atproto.yaml)
-#   make down        stop and keep volumes
+#   make up        build and start everything, including the PDS
+#   make up-core   everything except the PDS (see infra/pds/compose.yaml)
+#   make down      stop everything, keep volumes
 #
 # Values come from .env (copy .env.example). No secrets are committed here.
 

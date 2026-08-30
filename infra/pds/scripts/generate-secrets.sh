@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generate the three secrets the PDS requires and write them into
-# services/pds/.env, creating it from .env.example if needed.
+# infra/pds/.env, creating it from .env.example if needed.
 #
 # Local development only. Production secrets belong in a managed secret store,
 # not on a developer machine.
@@ -15,7 +15,7 @@ command -v xxd >/dev/null || { echo "error: xxd not found (install vim-common or
 
 if [[ ! -f "$env_file" ]]; then
   cp "$example" "$env_file"
-  echo "Created services/pds/.env from .env.example"
+  echo "Created infra/pds/.env from .env.example"
 fi
 
 # Refuse to clobber existing secrets; rotating is a deliberate act.
@@ -29,7 +29,7 @@ PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX
 KEYS
 
 if [[ ${#existing[@]} -gt 0 ]]; then
-  echo "services/pds/.env already has values for: ${existing[*]}"
+  echo "infra/pds/.env already has values for: ${existing[*]}"
   echo "Delete those lines' values first if you intend to rotate them."
   exit 0
 fi
@@ -50,4 +50,4 @@ set_key PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
   "$(openssl ecparam -name secp256k1 -genkey -noout -outform DER \
      | tail -c +8 | head -c 32 | xxd -p -c 32)"
 
-echo "Wrote PDS development secrets to services/pds/.env"
+echo "Wrote PDS development secrets to infra/pds/.env"
