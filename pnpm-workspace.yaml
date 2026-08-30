@@ -1,0 +1,11 @@
+# Workspace membership. Directories are listed only once real packages exist
+# there; see docs/architecture/repository-structure.md for the intended layout
+# and the backlog task that introduces each area.
+packages:
+  - services/*
+  - packages/*
+
+# esbuild ships a platform binary that Vitest requires at runtime; pnpm 10 blocks
+# dependency build scripts unless they are explicitly allowed.
+onlyBuiltDependencies:
+  - esbuild

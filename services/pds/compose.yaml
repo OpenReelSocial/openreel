@@ -1,0 +1,50 @@
+# Personal Data Server, layered onto the root compose.yaml by 'make up-atproto'.
+#
+# OpenReel operates the upstream bluesky-social PDS rather than authoring one, so
+# this directory holds configuration and operational tooling, not application code.
+# See docs/adr/0002-foundational-technology-stack.md.
+#
+# Kept out of the root compose.yaml because Compose interpolates every service in
+# a file regardless of profile, so the required-variable guards below would break
+# a plain 'make up' that only wants Postgres and Redis.
+
+services:
+  # Upstream Bluesky PDS, operated rather than authored by OpenReel. It keeps its
+  # own SQLite repositories and blob store under PDS_DATA_DIRECTORY and does not
+  # use the postgres service above.
+  pds:
+    image: ghcr.io/bluesky-social/pds:0.4
+    restart: unless-stopped
+    environment:
+      PDS_HOSTNAME: ${PDS_HOSTNAME:-localhost}
+      PDS_PORT: 3000
+      # Local only. @atproto/pds requires an https OAuth resource URL, which a
+      # plain-http localhost hostname cannot produce; dev mode relaxes that.
+      # A deployed PDS uses a real openreel.social subdomain behind TLS and must
+      # leave this false.
+      PDS_DEV_MODE: ${PDS_DEV_MODE:-false}
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_DID_PLC_URL: ${PDS_DID_PLC_URL:-https://plc.directory}
+      PDS_JWT_SECRET: ${PDS_JWT_SECRET:?set PDS_JWT_SECRET in .env}
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX:?set PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX in .env}
+    ports:
+      - '${PDS_EXPOSED_PORT:-3000}:3000'
+    volumes:
+      - pds-data:/pds
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/xrpc/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  pds-data:

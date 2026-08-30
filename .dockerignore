@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.env
+!**/.env.example
+.git
+.github
+.vscode
+cdk.out
+docs
+apps
+**/*.log

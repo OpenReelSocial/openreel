@@ -1,6 +1,7 @@
 {
   "recommendations": [
-    "biomejs.biome",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
     "charliermarsh.ruff",
     "swiftlang.swift-vscode",
     "ms-azuretools.vscode-containers",
