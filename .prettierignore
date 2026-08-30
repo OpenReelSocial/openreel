@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+dist/
+.turbo/
+cdk.out/
+
+# Existing prose and the structured backlog predate Prettier and are not
+# reformatted by this workspace setup. Reformatting them is a separate change.
+*.md
+docs/
+.github/

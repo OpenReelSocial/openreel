@@ -50,12 +50,12 @@ The repository is a monorepo. The intended major areas are reflected by reposito
 - `services/appview/` — AppView/indexing and hydration
 - `services/feedgen/` — feed generation
 - `services/relay/` — Relay/Firehose-related work
-- `services/pds/` — PDS integration/configuration
 - `services/labeler/` — moderation/labeling
 - `services/classifier/` — automated content classification
 - `services/gateway/` — client/backend integration gateway where applicable
 - `packages/lexicons/` — OpenReel AT Protocol Lexicons
 - `infra/` — deployment and infrastructure-as-code
+- `infra/pds/` — PDS deployment configuration and operational tooling. The PDS itself is the upstream `bluesky-social` implementation, which OpenReel operates rather than authors
 - `docs/adr/` — architecture decision records
 
 Do not create empty directory trees purely to make the intended structure visible. Git tracks files, not directories; add directories when real content belongs there.
