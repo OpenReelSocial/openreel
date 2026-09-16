@@ -57,7 +57,11 @@ format-check: ## Verify Prettier formatting
 	pnpm run format-check
 
 .PHONY: lint
-lint: ## Run ESLint
+# Type-aware ESLint resolves @openreel/service-core through its package.json
+# exports, which point at dist/. typecheck and test get that build via turbo's
+# ^build dependency; eslint runs at the root, so it needs the build explicitly
+# or a fresh clone fails with "type that could not be resolved".
+lint: build ## Run ESLint
 	pnpm run lint
 
 .PHONY: typecheck
@@ -109,9 +113,9 @@ pds-logs: ## Follow PDS logs
 	$(COMPOSE_FULL) logs -f pds
 
 .PHONY: down
+# --remove-orphans also removes the PDS, which is defined in infra/pds and so is
+# an orphan relative to compose.yaml alone. Without it the PDS survives.
 down: ## Stop every container in the project, keep volumes
-	# --remove-orphans also removes the PDS, which is defined in infra/pds and so
-	# is an orphan relative to compose.yaml alone. Without it the PDS survives.
 	docker compose down --remove-orphans
 
 .PHONY: clean
