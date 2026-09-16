@@ -136,9 +136,7 @@ A good PR description should state:
 
 Use the repository's checked-in commands as they become available. Do not invent commands and present them as if they already work.
 
-At the time this file was introduced, the full developer toolchain and canonical `make check` workflow were still being established. Inspect the root `Makefile`, package scripts, CI workflows, and component documentation before running or documenting commands.
-
-Once a canonical validation command exists, it should be the default pre-PR verification path for both humans and agents.
+`make check` is the canonical pre-PR verification command (ADR-0002). It runs `format-check`, `lint`, `typecheck`, and `test` for the TypeScript workspace, and `.github/workflows/ci.yml` runs the same targets on every pull request to `main`. iOS, classifier, and Lexicon checks are not yet part of it. Inspect the root `Makefile`, package scripts, CI workflows, and component documentation before running or documenting other commands; a fuller update of this file is tracked by DEV-039.
 
 General rules:
 
