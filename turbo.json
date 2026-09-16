@@ -12,7 +12,8 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": ["TEST_DATABASE_URL"]
     },
     "dev": {
       "cache": false,
