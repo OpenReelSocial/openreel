@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One run per PR (or per branch on push). Superseded PR runs are cancelled;
+# pushes to main always run to completion.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  check:
+    name: Format, lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `version` input: the action reads the pinned `packageManager` field
+      # from package.json, so CI and local Corepack activate the same pnpm.
+      - uses: pnpm/action-setup@v4
+
+      # Must run after pnpm is installed so that `cache: pnpm` can locate the store.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Workspace packages (e.g. @openreel/service-core) export from dist/, and
+      # ESLint's type-aware rules resolve imports through those built types.
+      # `typecheck` and `test` build dependencies via Turbo's `^build`, but
+      # `lint` is plain `eslint .`, so build explicitly first.
+      - name: Build
+        run: make build
+
+      # The steps below are the components of `make check` (ADR-0002), run
+      # separately so a failure is visible at a glance in the checks UI.
+      - name: Format check
+        run: make format-check
+
+      - name: Lint
+        run: make lint
+
+      - name: Typecheck
+        run: make typecheck
+
+      - name: Test
+        run: make test
