@@ -10,8 +10,10 @@ intended shape lives. `.github/CODEOWNERS` already encodes ownership for paths
 that do not exist yet; treat the two together as the contract.
 
 Technology choices referenced here are recorded in
-[ADR-0002](../adr/0002-foundational-technology-stack.md). Backlog task IDs refer
-to `docs/dev-environment-tasks.yaml`.
+[ADR-0002](../adr/0002-foundational-technology-stack.md); the database access
+layer and migration tooling in
+[ADR-0003](../adr/0003-database-access-and-migrations.md). Backlog task IDs
+refer to `docs/dev-environment-tasks.yaml`.
 
 ## What exists today
 
@@ -19,6 +21,13 @@ to `docs/dev-environment-tasks.yaml`.
 openreel/
 ├── apps/                      # (not yet created)
 ├── packages/
+│   ├── db/                    # Kysely + pg, shared schema + migrations     DEV-028
+│   │   ├── src/
+│   │   │   ├── database.ts    #   Database table types, createDb()/closeDb()
+│   │   │   ├── migrations/    #   NNNN_*.ts, registered in index.ts
+│   │   │   ├── migrate.ts     #   migrateToLatest(), resetDatabase(), status
+│   │   │   └── cli.ts         #   'node dist/cli.js migrate|reset|status'
+│   │   └── test/              #   unit tests + TEST_DATABASE_URL-gated integration
 │   ├── lexicons/              # social.openreel.* Lexicons + bindings   DEV-030..033
 │   │   ├── lexicons/
 │   │   │   ├── social/openreel/  # OpenReel Lexicon JSON, one file per NSID
@@ -136,6 +145,18 @@ Lexicon JSON and commit the output. `make lex-check` performs the same validatio
 and then regenerates into a temporary directory and compares, failing if the
 committed bindings are stale without touching the tree. `make check` includes
 `lex-check`. Rules specific to that subtree are in `packages/lexicons/AGENTS.md`.
+
+**Database.** One Postgres database, one migration history, owned by
+`packages/db/` (ADR-0003). `make db-migrate` applies pending migrations,
+`make db-status` lists them, and `make db-reset` rolls every migration back and
+re-applies them — destructive, local only, and refused under
+`NODE_ENV=production`. All three read `DATABASE_URL` from the environment, then
+`.env`, then derive it from the `POSTGRES_*` values so it matches the Compose
+database from the host. Migrations are an explicit step; no service or
+container runs them on start. Schema changes are new files under
+`packages/db/src/migrations/`, never edits to merged ones. The integration test
+in `packages/db/test/` runs only when `TEST_DATABASE_URL` is set, so
+`make test` needs no database.
 
 `make up` is the whole stack — Postgres, Redis, AppView, Feed Generator, admin,
 and the PDS — and finishes by printing the status report, so one command both

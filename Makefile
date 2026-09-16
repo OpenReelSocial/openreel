@@ -126,6 +126,31 @@ pds-logs: ## Follow PDS logs
 down: ## Stop every container in the project, keep volumes
 	docker compose down --remove-orphans
 
+# Database migrations (packages/db, ADR-0003). Migrations are an explicit step,
+# not run at service or container start. DATABASE_URL is taken from the
+# environment, else .env, else derived from the POSTGRES_* values so it always
+# matches the Compose database from the host side.
+ifndef DATABASE_URL
+DATABASE_URL := $(shell set -a; [[ -f .env ]] && . ./.env; echo "$${DATABASE_URL:-postgres://$${POSTGRES_USER:-openreel}:$${POSTGRES_PASSWORD:-openreel_dev}@localhost:$${POSTGRES_PORT:-5432}/$${POSTGRES_DB:-openreel}}")
+endif
+export DATABASE_URL
+
+.PHONY: db-migrate
+db-migrate: db-build ## Apply pending database migrations (DATABASE_URL)
+	node packages/db/dist/cli.js migrate
+
+.PHONY: db-status
+db-status: db-build ## List database migrations and whether each is applied
+	node packages/db/dist/cli.js status
+
+.PHONY: db-reset
+db-reset: db-build ## DESTRUCTIVE: drop all tables via down migrations, re-apply (local only)
+	node packages/db/dist/cli.js reset
+
+.PHONY: db-build
+db-build:
+	@pnpm --filter @openreel/db run build >/dev/null
+
 .PHONY: clean
 clean: ## Remove build output and caches
 	rm -rf .turbo services/*/dist services/*/.turbo
