@@ -46,7 +46,7 @@ check-tools: ## Verify required system prerequisites
 		echo ""; echo "Fix the items above, then re-run 'make bootstrap'."; exit 1; fi
 
 .PHONY: check
-check: format-check lint typecheck test ## Run all pre-PR checks
+check: format-check lint typecheck test lex-check ## Run all pre-PR checks
 
 .PHONY: format
 format: ## Apply Prettier formatting
@@ -79,6 +79,14 @@ build: ## Compile every workspace package
 .PHONY: dev
 dev: ## Run services in watch mode
 	pnpm run dev
+
+.PHONY: lex
+lex: ## Validate Lexicons and regenerate packages/lexicons/src/generated
+	pnpm --filter @openreel/lexicons run lex
+
+.PHONY: lex-check
+lex-check: ## Validate Lexicons and fail if generated bindings are stale
+	pnpm --filter @openreel/lexicons run lex:check
 
 .PHONY: up
 up: pds-secrets ## Build and start the whole stack, then report status

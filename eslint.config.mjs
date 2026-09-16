@@ -4,7 +4,14 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/.turbo/**', '**/cdk.out/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/.turbo/**',
+      '**/cdk.out/**',
+      '**/node_modules/**',
+      // Emitted by @atproto/lex-cli via 'make lex'; not hand-maintained.
+      'packages/lexicons/src/generated/**',
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,

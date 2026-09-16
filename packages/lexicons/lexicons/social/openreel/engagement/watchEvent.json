@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.engagement.watchEvent",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A single watch session of one video by the repository owner. Written to the viewer's own repository so the viewer retains ownership of their engagement history. Records in a public repository are readable by anyone; clients must only write watch events the viewer has consented to publish.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "watchDurationMs", "videoDurationMs", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "description": "The social.openreel.video.post that was watched, pinned to the version seen.",
+            "ref": "com.atproto.repo.strongRef"
+          },
+          "watchDurationMs": {
+            "type": "integer",
+            "description": "Total milliseconds of playback across the session, including any rewatches. May exceed videoDurationMs.",
+            "minimum": 0
+          },
+          "videoDurationMs": {
+            "type": "integer",
+            "description": "Duration of the video in milliseconds at the time it was watched, so completion can be derived without hydrating the post.",
+            "minimum": 1
+          },
+          "soundEnabled": {
+            "type": "boolean",
+            "description": "Whether audio was unmuted for at least part of the session."
+          },
+          "rewatchCount": {
+            "type": "integer",
+            "description": "Number of times playback looped or was restarted within the session. Zero for a single pass.",
+            "minimum": 0
+          },
+          "context": {
+            "type": "string",
+            "description": "Surface the video was watched from.",
+            "knownValues": ["feed", "profile", "search", "direct"]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Client-declared timestamp when the watch session ended.",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}
