@@ -1,0 +1,30 @@
+{
+  "name": "@openreel/lexicons",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "lex": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lex.ts generate",
+    "lex:check": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lex.ts check",
+    "lex:validate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lex.ts validate",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@atproto/lexicon": "^0.7.14",
+    "@atproto/xrpc": "^0.8.13",
+    "multiformats": "^13.4.2"
+  },
+  "devDependencies": {
+    "@atproto/lex-cli": "^0.10.13",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.video.post",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A short-form video post. The record holds portable canonical metadata and a reference to the uploaded video blob; transcoded renditions (HLS) are derived by the media pipeline and are not part of the record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["video", "durationMs", "createdAt"],
+        "properties": {
+          "video": {
+            "type": "blob",
+            "description": "The source video as uploaded by the author.",
+            "accept": ["video/*"],
+            "maxSize": 100000000
+          },
+          "caption": {
+            "type": "string",
+            "description": "Author-written caption shown with the video.",
+            "maxGraphemes": 300,
+            "maxLength": 3000
+          },
+          "tags": {
+            "type": "array",
+            "description": "Hashtags without the leading '#', used for discovery.",
+            "maxLength": 8,
+            "items": { "type": "string", "maxGraphemes": 64, "maxLength": 640 }
+          },
+          "durationMs": {
+            "type": "integer",
+            "description": "Duration of the video in milliseconds, as measured by the client at upload time.",
+            "minimum": 1
+          },
+          "aspectRatio": {
+            "type": "ref",
+            "ref": "#aspectRatio"
+          },
+          "thumbnail": {
+            "type": "blob",
+            "description": "Poster image displayed before playback starts.",
+            "accept": ["image/*"],
+            "maxSize": 1000000
+          },
+          "alt": {
+            "type": "string",
+            "description": "Alt text describing the video for accessibility.",
+            "maxGraphemes": 1000,
+            "maxLength": 10000
+          },
+          "langs": {
+            "type": "array",
+            "description": "Languages spoken or captioned in the video, as BCP-47 tags.",
+            "maxLength": 3,
+            "items": { "type": "string", "format": "language" }
+          },
+          "labels": {
+            "type": "union",
+            "description": "Self-applied labels, for example adult content markers.",
+            "refs": ["com.atproto.label.defs#selfLabels"]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Client-declared timestamp when the post was created.",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "description": "Display aspect ratio as a width:height pair. Only the ratio is meaningful; the values are not pixel dimensions.",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

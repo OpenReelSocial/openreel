@@ -3,6 +3,13 @@ dist/
 .turbo/
 cdk.out/
 
+# @atproto/lex-cli formats its own output; 'make lex-check' compares it byte for
+# byte, so Prettier must not reformat it.
+packages/lexicons/src/generated/
+
+# Upstream com.atproto Lexicons vendored verbatim for codegen; keep byte-identical.
+packages/lexicons/lexicons/com/
+
 # Existing prose and the structured backlog predate Prettier and are not
 # reformatted by this workspace setup. Reformatting them is a separate change.
 *.md

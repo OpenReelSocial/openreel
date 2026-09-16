@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.feed.generator",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Declares a video feed generator and the ranking approach it uses, so clients can present user-selectable feeds with their method disclosed. The record can exist in any repository; its AT-URI is the feed URI passed to getFeedSkeleton.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["did", "displayName", "rankingCriteria", "createdAt"],
+        "properties": {
+          "did": {
+            "type": "string",
+            "description": "DID of the service that serves this feed.",
+            "format": "did"
+          },
+          "displayName": {
+            "type": "string",
+            "maxGraphemes": 24,
+            "maxLength": 240
+          },
+          "description": {
+            "type": "string",
+            "maxGraphemes": 300,
+            "maxLength": 3000
+          },
+          "avatar": {
+            "type": "blob",
+            "accept": ["image/png", "image/jpeg"],
+            "maxSize": 1000000
+          },
+          "rankingCriteria": {
+            "type": "string",
+            "description": "Self-declared family of ranking method. 'chronological' and 'heuristic' use no individual data; 'social' uses the public follow graph; 'personalized' and 'collaborative' require opted-in engagement data; 'hybrid' combines families.",
+            "knownValues": [
+              "chronological",
+              "heuristic",
+              "social",
+              "personalized",
+              "collaborative",
+              "hybrid"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

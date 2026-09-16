@@ -19,6 +19,15 @@ to `docs/dev-environment-tasks.yaml`.
 openreel/
 ├── apps/                      # (not yet created)
 ├── packages/
+│   ├── lexicons/              # social.openreel.* Lexicons + bindings   DEV-030..033
+│   │   ├── lexicons/
+│   │   │   ├── social/openreel/  # OpenReel Lexicon JSON, one file per NSID
+│   │   │   └── com/atproto/      # upstream Lexicons vendored verbatim for refs
+│   │   ├── scripts/lex.ts     #   validate / generate / check ('make lex')
+│   │   ├── src/index.ts       #   public surface of @openreel/lexicons
+│   │   ├── src/generated/     #   @atproto/lex-cli output, committed, never edited
+│   │   ├── test/              #   contract tests: valid and invalid records
+│   │   └── AGENTS.md          #   scoped rules: contracts, compatibility, codegen
 │   └── service-core/          # shared Express app, health route, config  DEV-020
 ├── services/
 │   ├── appview/               # Express 5 + TypeScript, GET /health          DEV-016
@@ -73,7 +82,6 @@ Each appears when the owning task is implemented.
 | `apps/ios/` | SwiftUI client; `project.yml` for XcodeGen, generated `.xcodeproj` stays uncommitted | DEV-013/014 |
 | `apps/ios/Packages/OpenReelNetworking/` | Swift package for protocol + API access | — |
 | `apps/ios/Packages/OpenReelPlayer/` | Swift package for AVFoundation/HLS playback | — |
-| `packages/lexicons/` | `social.openreel.*` Lexicon JSON and generated bindings | E4-01 |
 | `infra/*.ts`, `infra/lib/` | AWS CDK v2 TypeScript app plus `infra/AGENTS.md`. Not started | DEV-048/049 |
 | `services/gateway/` | Client/backend gateway, **if** the boundary proves necessary | — |
 | `services/labeler/` | Moderation labeling service | — |
@@ -121,6 +129,13 @@ case.
 **Commands.** `make` is the stable interface for humans, CI, and agents;
 `make check` is the pre-PR gate. `pnpm` and `turbo` are implementation details
 behind it, and only working targets are exposed.
+
+`make lex` validates every Lexicon document under `packages/lexicons/lexicons/`
+and regenerates `packages/lexicons/src/generated/`; run it after editing any
+Lexicon JSON and commit the output. `make lex-check` performs the same validation
+and then regenerates into a temporary directory and compares, failing if the
+committed bindings are stale without touching the tree. `make check` includes
+`lex-check`. Rules specific to that subtree are in `packages/lexicons/AGENTS.md`.
 
 `make up` is the whole stack — Postgres, Redis, AppView, Feed Generator, admin,
 and the PDS — and finishes by printing the status report, so one command both
