@@ -113,9 +113,9 @@ pds-logs: ## Follow PDS logs
 	$(COMPOSE_FULL) logs -f pds
 
 .PHONY: down
+# --remove-orphans also removes the PDS, which is defined in infra/pds and so is
+# an orphan relative to compose.yaml alone. Without it the PDS survives.
 down: ## Stop every container in the project, keep volumes
-	# --remove-orphans also removes the PDS, which is defined in infra/pds and so
-	# is an orphan relative to compose.yaml alone. Without it the PDS survives.
 	docker compose down --remove-orphans
 
 .PHONY: clean
