@@ -2,13 +2,16 @@ import AVFoundation
 import SwiftUI
 
 /// Owns one AVPlayer's lifecycle for a single feed cell: loops on end, and
-/// plays/pauses as the cell scrolls in and out of view.
+/// plays/pauses as the cell scrolls in and out of view, and reports playback
+/// position as a 0...1 fraction.
 struct ReelPlayerView: View {
     let url: URL
     let isActive: Bool
+    @Binding var progress: Double
 
     @State private var player: AVPlayer?
     @State private var loopObserver: NSObjectProtocol?
+    @State private var timeObserver: Any?
 
     var body: some View {
         Group {
@@ -41,6 +44,15 @@ struct ReelPlayerView: View {
             newPlayer?.play()
         }
 
+        timeObserver = newPlayer.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 10),
+            queue: .main
+        ) { [weak newPlayer] time in
+            guard let duration = newPlayer?.currentItem?.duration.seconds,
+                  duration.isFinite, duration > 0 else { return }
+            progress = time.seconds / duration
+        }
+
         player = newPlayer
         if isActive {
             newPlayer.play()
@@ -49,6 +61,11 @@ struct ReelPlayerView: View {
 
     private func teardownPlayer() {
         player?.pause()
+        if let timeObserver {
+            player?.removeTimeObserver(timeObserver)
+        }
+        timeObserver = nil
+        progress = 0
         if let loopObserver {
             NotificationCenter.default.removeObserver(loopObserver)
         }
