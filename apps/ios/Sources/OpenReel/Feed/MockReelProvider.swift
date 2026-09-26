@@ -3,6 +3,11 @@ import Foundation
 /// Local placeholder data so the feed is demoable before the AppView exists.
 /// Streams are Apple's public HLS example assets, not OpenReel content.
 enum MockReelProvider {
+    /// Placeholder feed tabs until feed generators exist; every tab shows the
+    /// same reels for now.
+    static let feedNames = ["Following", "For You", "Cooking", "Local"]
+    static let defaultFeed = "For You"
+
     static let reels: [Reel] = [
         Reel(
             id: "1",
@@ -14,7 +19,8 @@ enum MockReelProvider {
             id: "2",
             authorHandle: "@another.bsky.social",
             caption: "Mock reel #2 — placeholder HLS stream.",
-            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8")!
+            videoURL: URL(string: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8")!,
+            labels: [ContentLabel(name: "Flashing lights", labeler: "OpenReel Safety")]
         ),
         Reel(
             id: "3",
