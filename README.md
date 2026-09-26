@@ -8,8 +8,9 @@ Compose. `make check-tools` verifies them and says how to fix what is missing.
 
 ```sh
 make bootstrap   # check tools, install dependencies, create .env files
-make up          # build and start Postgres, Redis, AppView, Feed Generator, admin, PDS
+make up          # build and start the full app, data, PDS, and event stack
 make status      # service status; also served at http://localhost:3003
+make demo-pds-event # write a sample profile to the PDS and observe the backend event
 make check       # pre-PR gate: format, lint, typecheck, test
 make down        # stop everything, keep volumes
 ```
@@ -21,3 +22,9 @@ alone to list every target, and see
 [docs/architecture/repository-structure.md](docs/architecture/repository-structure.md)
 for the layout and command conventions. Agent and contributor rules live in
 [AGENTS.md](AGENTS.md).
+
+The full stack also runs a private development PLC directory, pinned upstream
+Jetstream, and the OpenReel event consumer. `make demo-pds-event` creates a
+disposable local account, writes its `app.bsky.actor.profile` record to the PDS,
+then waits until the same record appears at the consumer's loopback-only API on
+port 3004. No local identity is published to the public PLC directory.

@@ -31,6 +31,14 @@ export function resolveTargets(env: NodeJS.ProcessEnv = process.env): Target[] {
       probe: { kind: 'http', url: env['PDS_HEALTH_URL'] ?? 'http://pds:3000/xrpc/_health' },
     },
     {
+      name: 'events',
+      role: 'PDS repository event consumption',
+      probe: {
+        kind: 'http',
+        url: env['EVENT_CONSUMER_HEALTH_URL'] ?? 'http://event-consumer:3004/ready',
+      },
+    },
+    {
       name: 'postgres',
       role: 'AppView and feed generator index',
       probe: {

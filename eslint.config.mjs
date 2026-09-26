@@ -25,8 +25,21 @@ export default tseslint.config(
   },
   {
     // Config and test-harness files are not part of a service tsconfig project.
-    files: ['**/*.config.{js,mjs,ts}', 'eslint.config.mjs'],
+    files: ['**/*.config.{js,mjs,ts}', 'scripts/**/*.{js,mjs}', 'eslint.config.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        crypto: 'readonly',
+        fetch: 'readonly',
+        process: 'readonly',
+        setTimeout: 'readonly',
+        URLSearchParams: 'readonly',
+      },
+    },
   },
   prettier,
 )
