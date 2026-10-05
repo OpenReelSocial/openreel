@@ -79,6 +79,8 @@ services:
       PDS_DEV_MODE: ${PDS_DEV_MODE:-false}
       PDS_DATA_DIRECTORY: /pds
       PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      # The default is 5 MB; social.openreel.video.post allows 100 MB videos.
+      PDS_BLOB_UPLOAD_LIMIT: '100000000'
       # Always private in this local-only descriptor. Do not let an old .env
       # accidentally publish disposable localhost identities to plc.directory.
       PDS_DID_PLC_URL: http://plc:8080

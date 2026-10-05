@@ -44,6 +44,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # Applies database migrations, then exits. Services that query the database
+  # wait for it, so a fresh 'make up' needs no separate 'make db-migrate'.
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   appview:
     build:
       context: .
@@ -55,11 +67,18 @@ services:
       # Compose service names, not localhost: each container has its own loopback.
       DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
       REDIS_URL: redis://redis:6379
+      # Jetstream and the PLC come from infra/pds/compose.yaml; without them
+      # ('make up-core') the indexer just keeps retrying.
+      JETSTREAM_URL: ws://jetstream:6008/subscribe
+      PLC_URL: http://plc:8080
+      FEEDGEN_URL: http://feedgen:3002
+      # Where clients (the iOS Simulator) fetch HLS: the media-cdn port below.
+      MEDIA_PUBLIC_URL: http://localhost:${MEDIA_CDN_PORT:-3006}
     ports:
       - '${APPVIEW_PORT:-3001}:3001'
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
@@ -88,8 +107,8 @@ services:
     ports:
       - '${FEEDGEN_PORT:-3002}:3002'
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
@@ -104,6 +123,61 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Media pipeline: transcodes uploaded video blobs into HLS (ADR-0006).
+  media:
+    build:
+      context: .
+      dockerfile: services/media/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3005
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
+      PLC_URL: http://plc:8080
+      # Local DID documents say the PDS is at localhost:3000, which is the
+      # host's loopback, not this container's.
+      PDS_ALIASES: http://localhost:3000=http://pds:3000
+      MEDIA_ROOT: /media
+    ports:
+      - '127.0.0.1:${MEDIA_PORT:-3005}:3005'
+    volumes:
+      - media-data:/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3005/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Serves the media service's HLS output, standing in for a CDN.
+  media-cdn:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '${MEDIA_CDN_PORT:-3006}:8080'
+    volumes:
+      - media-data:/media:ro
+      - ./services/media/cdn.conf:/etc/nginx/conf.d/default.conf:ro
+    # media must mount the shared volume first: Docker takes a new volume's
+    # ownership from the first container's image, and the worker runs as node.
+    depends_on:
+      media:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Internal status dashboard for local development. Bound to loopback only:
   # it reports on infrastructure and has no authentication.
@@ -138,3 +212,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  media-data:

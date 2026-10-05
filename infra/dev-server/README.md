@@ -10,8 +10,10 @@ The shared backend at **https://openreel.zackmurry.com**, deployed by
 | `/plc/` | private PLC directory, read-only | 4101 |
 | `/appview/` | AppView | 4102 |
 | `/feedgen/` | feed generator | 4103 |
+| `/media/` | HLS renditions (media-cdn) | 4106 |
 | — | admin status page | 4104 |
 | — | event-consumer | 4105 |
+| — | media worker status (`/status`) | 4107 |
 
 Postgres, Redis, the PLC database, and Jetstream are only on the Compose
 network.
@@ -21,7 +23,8 @@ network.
 When CI passes on `main`, the workflow builds every image, pushes it to GHCR
 tagged with the commit SHA, then over SSH:
 
-1. copies `compose.yaml`, `.env.example`, and `scripts/init-env.sh`,
+1. copies `compose.yaml`, `.env.example`, `scripts/init-env.sh`, and the
+   media CDN's nginx config,
 2. runs `init-env.sh`, which creates `.env` and fills any empty secret,
 3. writes `IMAGE_TAG=<sha>` into `.env`,
 4. pulls, runs `migrate`, then `docker compose up -d --wait`,
@@ -55,6 +58,20 @@ cd /srv/openreel && set -a && . ./.env && set +a
 curl -s -u "admin:$PDS_ADMIN_PASSWORD" -H 'content-type: application/json' \
   -d '{"useCount":1}' http://127.0.0.1:4100/xrpc/com.atproto.server.createInviteCode
 ```
+
+To put demo videos in the feed (creates an account using an invite), from a
+checkout with ffmpeg installed:
+
+```sh
+PDS_URL=https://openreel.zackmurry.com \
+APPVIEW_URL=https://openreel.zackmurry.com/appview \
+HANDLE_DOMAIN=.openreel.zackmurry.com \
+PDS_ADMIN_PASSWORD=<from the server's .env> make seed-videos
+```
+
+The feed is then at
+`https://openreel.zackmurry.com/appview/xrpc/social.openreel.feed.getFeed`.
+How media works: `docs/architecture/media.md`.
 
 Handles are `<name>.openreel.zackmurry.com`. There is no wildcard DNS: clients
 resolve handles through the PDS's `com.atproto.identity.resolveHandle` and DIDs

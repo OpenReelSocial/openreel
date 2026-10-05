@@ -51,6 +51,8 @@ jobs:
             dockerfile: services/admin/Dockerfile
           - name: event-consumer
             dockerfile: services/event-consumer/Dockerfile
+          - name: media
+            dockerfile: services/media/Dockerfile
           - name: db-migrate
             dockerfile: packages/db/Dockerfile
     steps:
@@ -104,6 +106,8 @@ jobs:
           ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p $DEPLOY_DIR/scripts"
           scp -i ~/.ssh/deploy infra/dev-server/compose.yaml infra/dev-server/.env.example \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+          scp -i ~/.ssh/deploy services/media/cdn.conf \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/media-cdn.conf"
           scp -i ~/.ssh/deploy infra/dev-server/scripts/init-env.sh \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/scripts/"
 
@@ -140,6 +144,8 @@ jobs:
           check "$PUBLIC_URL/plc/_health"
           check "$PUBLIC_URL/appview/health"
           check "$PUBLIC_URL/feedgen/health"
+          check "$PUBLIC_URL/media/health"
+          check "$PUBLIC_URL/appview/xrpc/social.openreel.feed.getFeed"
           # Confirm the running services report this commit.
           curl -fsS "$PUBLIC_URL/appview/health" | grep -q "$SHA" \
             || { echo "::error::appview is not running $SHA"; exit 1; }
