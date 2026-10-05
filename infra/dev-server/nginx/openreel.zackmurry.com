@@ -42,6 +42,11 @@ server {
         proxy_pass http://127.0.0.1:4103/;
     }
 
+    # HLS renditions from the media service (media-cdn container).
+    location /media/ {
+        proxy_pass http://127.0.0.1:4106/;
+    }
+
     # PDS: XRPC, OAuth, /.well-known, and the subscribeRepos WebSocket.
     location / {
         proxy_pass http://127.0.0.1:4100;

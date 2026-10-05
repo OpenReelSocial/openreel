@@ -20,6 +20,9 @@ import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
 import * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
 import * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
+import * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
+import * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
+import * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
 import * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
 export * as ComAtprotoLabelDefs from './types/com/atproto/label/defs.js'
@@ -33,6 +36,9 @@ export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
 export * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
 export * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
+export * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
+export * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
+export * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
 export * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
 export class AtpBaseClient extends XrpcClient {
@@ -259,6 +265,28 @@ export class SocialOpenreelFeedNS {
   constructor(client: XrpcClient) {
     this._client = client
     this.generator = new SocialOpenreelFeedGeneratorRecord(client)
+  }
+
+  getFeed(
+    params?: SocialOpenreelFeedGetFeed.QueryParams,
+    opts?: SocialOpenreelFeedGetFeed.CallOptions,
+  ): Promise<SocialOpenreelFeedGetFeed.Response> {
+    return this._client
+      .call('social.openreel.feed.getFeed', params, undefined, opts)
+      .catch((e) => {
+        throw SocialOpenreelFeedGetFeed.toKnownErr(e)
+      })
+  }
+
+  getFeedSkeleton(
+    params?: SocialOpenreelFeedGetFeedSkeleton.QueryParams,
+    opts?: SocialOpenreelFeedGetFeedSkeleton.CallOptions,
+  ): Promise<SocialOpenreelFeedGetFeedSkeleton.Response> {
+    return this._client
+      .call('social.openreel.feed.getFeedSkeleton', params, undefined, opts)
+      .catch((e) => {
+        throw SocialOpenreelFeedGetFeedSkeleton.toKnownErr(e)
+      })
   }
 }
 

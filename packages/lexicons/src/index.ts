@@ -9,6 +9,9 @@ export {
   SocialOpenreelEngagementCompletionRate,
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedGenerator,
+  SocialOpenreelFeedGetFeed,
+  SocialOpenreelFeedGetFeedSkeleton,
+  SocialOpenreelVideoDefs,
   SocialOpenreelVideoPost,
 } from './generated/index.ts'
 export { ids, lexicons, schemaDict, schemas, validate } from './generated/lexicons.ts'

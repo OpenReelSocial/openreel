@@ -51,7 +51,8 @@ openreel/
 │   │   └── .env.example
 │   ├── feedgen/               # same shape                             DEV-018/024
 │   ├── event-consumer/        # Jetstream subscriber + observation API      DEV-043
-│   └── admin/                 # internal status page, loopback-bound only
+│   ├── admin/                 # internal status page, loopback-bound only
+│   └── media/                 # transcodes video blobs to HLS; cdn.conf  ADR-0006
 ├── infra/
 │   ├── pds/                   # upstream ATProto event infrastructure
 │   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
@@ -70,6 +71,7 @@ openreel/
 │   └── dev-environment-tasks.yaml
 ├── scripts/
 │   ├── github/                # backlog seeding
+│   ├── seed-videos.mjs        # demo content: upload videos, wait for HLS
 │   └── status.sh              # terminal renderer for the admin status API
 ├── .github/                   # templates, CODEOWNERS, workflows
 ├── .vscode/
@@ -189,7 +191,7 @@ deliberate rather than accidental.
 | `entities` | `packages/` | Shared TypeScript packages |
 | `proxy` | `services/gateway/` | Existing `AGENTS.md` name; may not be needed |
 | `py_utils` | `services/classifier/` | Python stays inside the one service that needs it |
-| `processing` | — | Media/transcode pipeline; no owning task yet |
+| `processing` | `services/media/` | Media/transcode pipeline (ADR-0006) |
 | `tools`, `dev` | `scripts/` | Folded together rather than three overlapping directories |
 | `biome.json` | `.prettierrc.json`, `eslint.config.mjs` | Per ADR-0002 |
 | `pyproject.toml`, `uv.lock` | `package.json`, `pnpm-lock.yaml` | A `pyproject.toml` appears under `services/classifier/` later |

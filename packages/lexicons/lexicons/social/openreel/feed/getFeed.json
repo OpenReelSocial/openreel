@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.feed.getFeed",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get a hydrated, playable video feed from an AppView. The AppView requests the skeleton from the feed's generator and hydrates each post; posts it cannot hydrate (not indexed yet, media not ready, or deleted) are omitted.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "feed": {
+            "type": "string",
+            "description": "AT-URI of the social.openreel.feed.generator record. Defaults to the AppView's default feed.",
+            "format": "at-uri"
+          },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feed"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "feed": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "social.openreel.video.defs#postView" }
+            }
+          }
+        }
+      },
+      "errors": [{ "name": "UnknownFeed" }]
+    }
+  }
+}

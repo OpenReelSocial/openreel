@@ -772,6 +772,197 @@ export const schemaDict = {
       },
     },
   },
+  SocialOpenreelFeedGetFeed: {
+    lexicon: 1,
+    id: 'social.openreel.feed.getFeed',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get a hydrated, playable video feed from an AppView. The AppView requests the skeleton from the feed's generator and hydrates each post; posts it cannot hydrate (not indexed yet, media not ready, or deleted) are omitted.",
+        parameters: {
+          type: 'params',
+          properties: {
+            feed: {
+              type: 'string',
+              description:
+                "AT-URI of the social.openreel.feed.generator record. Defaults to the AppView's default feed.",
+              format: 'at-uri',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 30,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feed'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              feed: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.video.defs#postView',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'UnknownFeed',
+          },
+        ],
+      },
+    },
+  },
+  SocialOpenreelFeedGetFeedSkeleton: {
+    lexicon: 1,
+    id: 'social.openreel.feed.getFeedSkeleton',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get a ranked list of video post URIs from a feed generator. Mirrors app.bsky.feed.getFeedSkeleton: generators return references only, and the AppView hydrates them.',
+        parameters: {
+          type: 'params',
+          required: ['feed'],
+          properties: {
+            feed: {
+              type: 'string',
+              description:
+                'AT-URI of the social.openreel.feed.generator record for the requested feed.',
+              format: 'at-uri',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 30,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feed'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              feed: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.feed.getFeedSkeleton#skeletonFeedPost',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'UnknownFeed',
+          },
+        ],
+      },
+      skeletonFeedPost: {
+        type: 'object',
+        required: ['post'],
+        properties: {
+          post: {
+            type: 'string',
+            format: 'at-uri',
+          },
+        },
+      },
+    },
+  },
+  SocialOpenreelVideoDefs: {
+    lexicon: 1,
+    id: 'social.openreel.video.defs',
+    defs: {
+      postView: {
+        type: 'object',
+        description:
+          "A video post hydrated by an AppView: the author's record plus derived, playable media. 'playlist' and 'thumbnail' point at renditions the AppView's media pipeline produced from the record's video blob; they are not part of the record.",
+        required: ['uri', 'cid', 'author', 'record', 'playlist', 'indexedAt'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          author: {
+            type: 'ref',
+            ref: 'lex:social.openreel.video.defs#authorView',
+          },
+          record: {
+            type: 'unknown',
+            description:
+              "The social.openreel.video.post record as stored in the author's repository.",
+          },
+          playlist: {
+            type: 'string',
+            description: 'HLS multivariant playlist (.m3u8) for the video.',
+            format: 'uri',
+          },
+          thumbnail: {
+            type: 'string',
+            description: 'Poster image shown before playback starts.',
+            format: 'uri',
+          },
+          aspectRatio: {
+            type: 'ref',
+            ref: 'lex:social.openreel.video.post#aspectRatio',
+          },
+          durationMs: {
+            type: 'integer',
+            description:
+              'Duration of the transcoded video in milliseconds, as measured by the media pipeline.',
+            minimum: 1,
+          },
+          indexedAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+        },
+      },
+      authorView: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
+            description: "Handle claimed in the author's DID document, if any.",
+            format: 'handle',
+          },
+        },
+      },
+    },
+  },
   SocialOpenreelVideoPost: {
     lexicon: 1,
     id: 'social.openreel.video.post',
@@ -918,5 +1109,8 @@ export const ids = {
     'social.openreel.engagement.completionRate',
   SocialOpenreelEngagementWatchEvent: 'social.openreel.engagement.watchEvent',
   SocialOpenreelFeedGenerator: 'social.openreel.feed.generator',
+  SocialOpenreelFeedGetFeed: 'social.openreel.feed.getFeed',
+  SocialOpenreelFeedGetFeedSkeleton: 'social.openreel.feed.getFeedSkeleton',
+  SocialOpenreelVideoDefs: 'social.openreel.video.defs',
   SocialOpenreelVideoPost: 'social.openreel.video.post',
 } as const

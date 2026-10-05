@@ -61,6 +61,10 @@ services:
       SERVICE_VERSION: *tag
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
       REDIS_URL: redis://redis:6379
+      JETSTREAM_URL: ws://jetstream:6008/subscribe
+      PLC_URL: http://plc:8080
+      FEEDGEN_URL: http://feedgen:3002
+      MEDIA_PUBLIC_URL: https://${PDS_HOSTNAME}/media
     ports:
       - '127.0.0.1:4102:3001'
     depends_on:
@@ -108,6 +112,60 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Transcodes uploaded video blobs into HLS (ADR-0006). One job at a time:
+  # ffmpeg uses every core, and the host is shared.
+  media:
+    image: ghcr.io/openreelsocial/openreel-media:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3005
+      SERVICE_VERSION: *tag
+      DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      PLC_URL: http://plc:8080
+      # Fetch blobs from the PDS over the Compose network rather than out
+      # through the public hostname and back.
+      PDS_ALIASES: https://${PDS_HOSTNAME}=http://pds:3000
+      MEDIA_ROOT: /media
+    ports:
+      - '127.0.0.1:4107:3005'
+    volumes:
+      - media-data:/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3005/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # HLS origin; host nginx proxies https://${PDS_HOSTNAME}/media/ here.
+  media-cdn:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:4106:8080'
+    volumes:
+      - media-data:/media:ro
+      - ./media-cdn.conf:/etc/nginx/conf.d/default.conf:ro
+    # media must mount the shared volume first: Docker takes a new volume's
+    # ownership from the first container's image, and the worker runs as node.
+    depends_on:
+      media:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Unauthenticated status page: loopback only, never proxied by nginx. Reach it
   # with 'ssh -L 4104:127.0.0.1:4104 <server>' and http://localhost:4104.
@@ -200,6 +258,8 @@ services:
       PDS_DEV_MODE: 'false'
       PDS_DATA_DIRECTORY: /pds
       PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      # The default is 5 MB; social.openreel.video.post allows 100 MB videos.
+      PDS_BLOB_UPLOAD_LIMIT: '100000000'
       PDS_DID_PLC_URL: http://plc:8080
       # The server is on the public internet; open sign-up is opt-in.
       PDS_INVITE_REQUIRED: ${PDS_INVITE_REQUIRED:-true}
@@ -278,3 +338,4 @@ volumes:
   pds-data:
   plc-data:
   jetstream-data:
+  media-data:
