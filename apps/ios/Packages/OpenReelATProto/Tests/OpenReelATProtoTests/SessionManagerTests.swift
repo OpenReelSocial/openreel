@@ -385,10 +385,12 @@ final class SessionManagerTests: XCTestCase {
     }
 
     func testConcurrentCallersShareOneRefresh() async throws {
-        try store.save(Fixtures.session(expiresAt: clock.now))
-        try? await manager.restore() // fails: token endpoint unstubbed; session stays loaded
+        try store.save(Fixtures.session(expiresAt: clock.now.addingTimeInterval(600)))
+        try await manager.restore()
         transport.json("POST", tokenURL, Fixtures.tokenJSON(access: "access-2"))
         transport.json("GET", sessionURL, ["did": Fixtures.did.rawValue])
+        // Token is now stale, so both callers will want a refresh.
+        clock.now = clock.now.addingTimeInterval(600)
         let request = XRPC.queryRequest(service: Fixtures.pds, nsid: "com.atproto.server.getSession", parameters: [:])
 
         let manager = self.manager!
