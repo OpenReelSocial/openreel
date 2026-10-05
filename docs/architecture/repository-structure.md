@@ -53,9 +53,14 @@ openreel/
 │   ├── event-consumer/        # Jetstream subscriber + observation API      DEV-043
 │   └── admin/                 # internal status page, loopback-bound only
 ├── infra/
-│   └── pds/                   # upstream ATProto event infrastructure
-│       ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
-│       ├── scripts/           #   generate-secrets.sh
+│   ├── pds/                   # upstream ATProto event infrastructure
+│   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
+│   │   ├── scripts/           #   generate-secrets.sh
+│   │   └── .env.example
+│   └── dev-server/            # shared dev/demo server deployment      ADR-0005
+│       ├── compose.yaml       #   whole backend from GHCR images
+│       ├── nginx/             #   TLS reverse proxy site, installed by hand
+│       ├── scripts/           #   init-env.sh (server .env + secrets)
 │       └── .env.example
 ├── docs/
 │   ├── adr/                   # architecture decision records
