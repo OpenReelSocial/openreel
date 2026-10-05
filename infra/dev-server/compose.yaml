@@ -1,0 +1,280 @@
+# Shared dev/demo server (ADR-0005). Runs on the server at /srv/openreel; the
+# deploy workflow (.github/workflows/deploy-dev-server.yml) copies this file
+# over, pulls the images it names, migrates, and restarts.
+#
+# Standalone rather than an overlay of the root compose.yaml: the local files
+# build from source and publish development ports, while this one pulls the
+# GHCR images CI built and publishes only to loopback for nginx to front.
+#
+# Values come from /srv/openreel/.env on the server (see .env.example here),
+# whose secrets scripts/init-env.sh generates. Nothing secret is in this file.
+
+name: openreel
+
+x-image-tag: &tag ${IMAGE_TAG:-latest}
+
+services:
+  postgres:
+    image: postgres:16.9-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openreel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: openreel
+    # No published port: the host already runs its own Postgres on 5432.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U openreel -d openreel']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Not started by 'up'; the deploy job runs it before restarting services.
+  migrate:
+    image: ghcr.io/openreelsocial/openreel-db-migrate:${IMAGE_TAG:-latest}
+    profiles: [tools]
+    environment:
+      DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  appview:
+    image: ghcr.io/openreelsocial/openreel-appview:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      SERVICE_VERSION: *tag
+      DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '127.0.0.1:4102:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  feedgen:
+    image: ghcr.io/openreelsocial/openreel-feedgen:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      SERVICE_VERSION: *tag
+      DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '127.0.0.1:4103:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Unauthenticated status page: loopback only, never proxied by nginx. Reach it
+  # with 'ssh -L 4104:127.0.0.1:4104 <server>' and http://localhost:4104.
+  admin:
+    image: ghcr.io/openreelsocial/openreel-admin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+      SERVICE_VERSION: *tag
+    ports:
+      - '127.0.0.1:4104:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      event-consumer:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3003/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Private PLC directory, as locally: dev and demo identities never reach the
+  # public plc.directory. nginx exposes it read-only at /plc/ so clients can
+  # resolve DIDs; the PDS writes to it over the internal network.
+  plc-db:
+    image: postgres:16.9-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: plc
+      POSTGRES_PASSWORD: ${PLC_DB_PASSWORD:?set PLC_DB_PASSWORD in .env}
+      POSTGRES_DB: plc
+    volumes:
+      - plc-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U plc -d plc']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  plc:
+    image: ghcr.io/bluesky-social/did-method-plc:plc-f2ab7516bac5bc0f3f86842fa94e996bd1b3815b
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      PLC_VERSION: dev-f2ab7516
+      LOG_ENABLED: 'true'
+      ENABLE_MIGRATIONS: 'true'
+      DB_CREDS_JSON: '{"username":"plc","password":"${PLC_DB_PASSWORD}","host":"plc-db","port":5432,"database":"plc"}'
+      DB_MIGRATE_CREDS_JSON: '{"username":"plc","password":"${PLC_DB_PASSWORD}","host":"plc-db","port":5432,"database":"plc"}'
+    ports:
+      - '127.0.0.1:4101:8080'
+    depends_on:
+      plc-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:8080/_health',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Upstream Bluesky PDS behind nginx TLS at https://${PDS_HOSTNAME}, so dev
+  # mode is off. Handles under PDS_SERVICE_HANDLE_DOMAINS resolve through the
+  # PDS's own com.atproto.identity.resolveHandle; there is no wildcard DNS.
+  pds:
+    image: ghcr.io/bluesky-social/pds:0.4.219
+    restart: unless-stopped
+    environment:
+      PDS_HOSTNAME: ${PDS_HOSTNAME:?set PDS_HOSTNAME in .env}
+      PDS_SERVICE_HANDLE_DOMAINS: ${PDS_SERVICE_HANDLE_DOMAINS:?set PDS_SERVICE_HANDLE_DOMAINS in .env}
+      PDS_PORT: 3000
+      PDS_DEV_MODE: 'false'
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_DID_PLC_URL: http://plc:8080
+      # The server is on the public internet; open sign-up is opt-in.
+      PDS_INVITE_REQUIRED: ${PDS_INVITE_REQUIRED:-true}
+      # PDS_CRAWLERS is deliberately unset: accounts live in a private PLC, so
+      # there is nothing for the public Bluesky relay to crawl.
+      LOG_ENABLED: 'true'
+      PDS_JWT_SECRET: ${PDS_JWT_SECRET:?set PDS_JWT_SECRET in .env}
+      PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX:?set PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX in .env}
+    ports:
+      - '127.0.0.1:4100:3000'
+    volumes:
+      - pds-data:/pds
+    depends_on:
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/xrpc/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  jetstream:
+    image: ghcr.io/bluesky-social/jetstream:sha-d5a3b62
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      JETSTREAM_DATA_DIR: /data
+      JETSTREAM_LISTEN_ADDR: :6008
+      JETSTREAM_METRICS_LISTEN_ADDR: :6009
+      JETSTREAM_LIVENESS_TTL: 300s
+      JETSTREAM_WS_URL: ws://pds:3000/xrpc/com.atproto.sync.subscribeRepos
+    volumes:
+      - jetstream-data:/data
+    depends_on:
+      pds:
+        condition: service_healthy
+
+  # Loopback only, like admin: 'ssh -L 4105:127.0.0.1:4105 <server>'.
+  event-consumer:
+    image: ghcr.io/openreelsocial/openreel-event-consumer:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3004
+      SERVICE_VERSION: *tag
+      JETSTREAM_URL: ws://jetstream:6008/subscribe?wantedCollections=app.bsky.actor.profile&wantedCollections=social.openreel.*
+      EVENT_BUFFER_SIZE: ${EVENT_BUFFER_SIZE:-100}
+    ports:
+      - '127.0.0.1:4105:3004'
+    depends_on:
+      jetstream:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3004/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  redis-data:
+  pds-data:
+  plc-data:
+  jetstream-data:

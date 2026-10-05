@@ -1,0 +1,145 @@
+# Continuous deployment to the shared dev/demo server (ADR-0005).
+#
+# After CI passes on main, build every backend image, push it to GHCR tagged
+# with the commit SHA, then on the server: pull, migrate, restart, and wait for
+# health. Running it by hand (workflow_dispatch) deploys the chosen branch
+# without waiting for CI and without moving the :latest tag.
+#
+# Needs one repository secret, DEPLOY_SSH_KEY: a private key whose public half
+# is in root's authorized_keys on the server. Server setup is in
+# infra/dev-server/README.md.
+name: Deploy dev server
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Never cancel a deploy midway (it may be migrating); queue the next one.
+concurrency:
+  group: deploy-dev-server
+  cancel-in-progress: false
+
+env:
+  # workflow_run fires on the default branch, so pin the commit CI tested.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  IMAGE_PREFIX: ghcr.io/openreelsocial/openreel
+  # dvk-server (Hetzner Falkenstein), shared with other projects.
+  DEPLOY_HOST: 178.104.184.37
+  DEPLOY_USER: root
+  DEPLOY_DIR: /srv/openreel
+  PUBLIC_URL: https://openreel.zackmurry.com
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: appview
+            dockerfile: services/appview/Dockerfile
+          - name: feedgen
+            dockerfile: services/feedgen/Dockerfile
+          - name: admin
+            dockerfile: services/admin/Dockerfile
+          - name: event-consumer
+            dockerfile: services/event-consumer/Dockerfile
+          - name: db-migrate
+            dockerfile: packages/db/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:${{ env.SHA }}
+            ${{ github.event_name == 'workflow_run' && format('{0}-{1}:latest', env.IMAGE_PREFIX, matrix.name) || '' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: dev-server
+      url: ${{ env.PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy deployment files
+        run: |
+          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p $DEPLOY_DIR/scripts"
+          scp -i ~/.ssh/deploy infra/dev-server/compose.yaml infra/dev-server/.env.example \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+          scp -i ~/.ssh/deploy infra/dev-server/scripts/init-env.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/scripts/"
+
+      # The job token can read this repo's packages; log the server in with it
+      # just long enough to pull. IMAGE_TAG is persisted in .env so a manual
+      # 'docker compose up' on the server keeps running the deployed commit.
+      - name: Pull, migrate, restart
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "
+            set -euo pipefail
+            cd $DEPLOY_DIR
+            scripts/init-env.sh $DEPLOY_DIR
+            sed -i '/^IMAGE_TAG=/d' .env && echo 'IMAGE_TAG=$SHA' >> .env
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            trap 'docker logout ghcr.io' EXIT
+            docker compose --profile tools pull --quiet
+            docker compose run --rm migrate
+            docker compose up -d --remove-orphans --wait --wait-timeout 180 \
+              || { docker compose ps; docker compose logs --tail 50; exit 1; }
+            docker image prune -f
+          "
+
+      - name: Smoke test public endpoints
+        run: |
+          check() {
+            for _ in $(seq 1 10); do
+              curl -fsS -o /dev/null "$1" && echo "up: $1" && return 0
+              sleep 3
+            done
+            echo "::error::not reachable: $1"; return 1
+          }
+          check "$PUBLIC_URL/xrpc/_health"
+          check "$PUBLIC_URL/.well-known/oauth-protected-resource"
+          check "$PUBLIC_URL/plc/_health"
+          check "$PUBLIC_URL/appview/health"
+          check "$PUBLIC_URL/feedgen/health"
+          # Confirm the running services report this commit.
+          curl -fsS "$PUBLIC_URL/appview/health" | grep -q "$SHA" \
+            || { echo "::error::appview is not running $SHA"; exit 1; }
