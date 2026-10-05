@@ -55,7 +55,3 @@ make up
 make seed-videos        # generated clips; VIDEO_DIR=... for real ones
 curl -s localhost:3001/xrpc/social.openreel.feed.getFeed | jq '.feed[].playlist'
 ```
-
-The integration tests in `services/{appview,feedgen,media}` and `packages/db`
-run against Postgres when `TEST_DATABASE_URL` is set. They reset the database,
-so run them one package at a time. The transcode tests need ffmpeg.
