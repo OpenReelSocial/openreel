@@ -90,7 +90,7 @@ Each appears when the owning task is implemented.
 | Path | Contents | Task |
 | --- | --- | --- |
 | `apps/ios/` | SwiftUI client; `project.yml` for XcodeGen, generated `.xcodeproj` stays uncommitted | DEV-013/014 |
-| `apps/ios/Packages/OpenReelNetworking/` | Swift package for protocol + API access | — |
+| `apps/ios/Packages/OpenReelATProto/` | Swift package for AT Protocol identity resolution, OAuth sign-in, and session handling (ADR-0004). Exists; API access for OpenReel services will build on it | OR-019/027 |
 | `apps/ios/Packages/OpenReelPlayer/` | Swift package for AVFoundation/HLS playback | — |
 | `infra/*.ts`, `infra/lib/` | AWS CDK v2 TypeScript app plus `infra/AGENTS.md`. Not started | DEV-048/049 |
 | `services/gateway/` | Client/backend gateway, **if** the boundary proves necessary | — |

@@ -40,6 +40,10 @@ services:
       ENABLE_MIGRATIONS: 'true'
       DB_CREDS_JSON: '{"username":"plc","password":"plc_dev","host":"plc-db","port":5432,"database":"plc"}'
       DB_MIGRATE_CREDS_JSON: '{"username":"plc","password":"plc_dev","host":"plc-db","port":5432,"database":"plc"}'
+    # Loopback only: the iOS Simulator resolves local DIDs to their documents
+    # here. The PDS keeps using the in-network plc:8080 address.
+    ports:
+      - '127.0.0.1:${PLC_PORT:-2582}:8080'
     depends_on:
       plc-db:
         condition: service_healthy
