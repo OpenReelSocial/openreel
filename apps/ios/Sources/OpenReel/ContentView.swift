@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @State private var auth = AuthController()
+    @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
+    @State private var playback = FeedPlaybackController()
     @State private var showingAccount = false
 
     var body: some View {
@@ -16,15 +18,15 @@ struct ContentView: View {
             case .signingIn:
                 SignInView(auth: auth, message: nil)
             case .signedIn, .unavailable:
-                feed
+                feedScreen
             }
         }
         .task { await auth.restore() }
     }
 
-    private var feed: some View {
+    private var feedScreen: some View {
         ZStack(alignment: .topTrailing) {
-            FeedView()
+            FeedView(store: feed, playback: playback)
             // FeedView ignores the safe area; this ZStack does not, so the
             // button lands below the status bar.
             Button {
@@ -36,6 +38,9 @@ struct ContentView: View {
                     .padding()
             }
             .accessibilityLabel("Account")
+        }
+        .onChange(of: showingAccount) { _, showing in
+            showing ? playback.suspend(.covered) : playback.resume(.covered)
         }
         .sheet(isPresented: $showingAccount) {
             if let session = auth.session {

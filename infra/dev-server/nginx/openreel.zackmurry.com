@@ -47,6 +47,17 @@ server {
         proxy_pass http://127.0.0.1:4106/;
     }
 
+    # OAuth client metadata for Debug iOS builds signing in here
+    # (apps/ios/Sources/OpenReel/Auth/AppAuthConfiguration.swift). The PDS
+    # fetches it by its URL, the client_id. Exact match, so it wins over the
+    # PDS's /oauth/ routes below. The redirect scheme is this host reversed,
+    # as the atproto OAuth profile requires for native clients.
+    location = /oauth/ios-client-metadata.json {
+        default_type application/json;
+        add_header Cache-Control "public, max-age=300";
+        return 200 '{"client_id":"https://openreel.zackmurry.com/oauth/ios-client-metadata.json","client_name":"OpenReel for iOS (dev server)","client_uri":"https://openreel.zackmurry.com","application_type":"native","redirect_uris":["com.zackmurry.openreel:/oauth/callback"],"scope":"atproto transition:generic","grant_types":["authorization_code","refresh_token"],"response_types":["code"],"token_endpoint_auth_method":"none","dpop_bound_access_tokens":true}';
+    }
+
     # PDS: XRPC, OAuth, /.well-known, and the subscribeRepos WebSocket.
     location / {
         proxy_pass http://127.0.0.1:4100;

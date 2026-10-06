@@ -22,8 +22,8 @@ Regenerate the project any time `project.yml` or the file layout under
 
 | Path | Contents |
 | --- | --- |
-| `Sources/OpenReel/` | App target: feed, player, and the sign-in / account UI under `Auth/` |
-| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh. No UI. See ADR-0004 |
+| `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), and the sign-in / account UI under `Auth/` |
+| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, and the AppView `getFeed` client. No UI. See ADR-0004 |
 | `OAuth/ios-client-metadata.json` | The OAuth client-metadata document; must be hosted at `https://openreel.social/oauth/ios-client-metadata.json` for release builds |
 | `Supporting/Info.plist` | URL scheme for the OAuth redirect and the local-networking ATS exception |
 
@@ -35,10 +35,34 @@ app receives DPoP-bound tokens that are stored in the Keychain and refreshed on
 launch. Sign-out clears the Keychain before revoking the tokens, so it works
 even when the server is down.
 
-### Against the local PDS (Debug builds, Simulator only)
+### Debug builds
 
-Debug builds use the spec's loopback development client and point at the
-Compose stack from the repository root:
+Debug builds sign in against the backend chosen in
+`Sources/OpenReel/Backend.swift`. Against the dev server they are a native
+client whose metadata the dev server's nginx hosts at
+`https://openreel.zackmurry.com/oauth/ios-client-metadata.json`, redirecting to
+`com.zackmurry.openreel:/oauth/callback`. Against the local stack they use the
+spec's loopback development client.
+
+- **Dev server (default):** the shared server from ADR-0005 at
+  `openreel.zackmurry.com` — PDS, private PLC (`/plc`), AppView
+  (`/appview`), and media (`/media`). Its PDS requires an invite code, so
+  create the account with the PDS admin password. The simplest way is to let
+  the seed script make one; it prints the handle and password:
+
+  ```bash
+  PDS_URL=https://openreel.zackmurry.com \
+  APPVIEW_URL=https://openreel.zackmurry.com/appview \
+  HANDLE_DOMAIN=.openreel.zackmurry.com PDS_ADMIN_PASSWORD=... make seed-videos
+  ```
+
+  Works on a device as well as the Simulator.
+- **Local stack:** set `OPENREEL_BACKEND=local` under Product → Scheme → Edit
+  Scheme → Run → Arguments → Environment Variables. Simulator only: a device
+  cannot reach your Mac's `localhost`, and plain-http servers are only
+  accepted for loopback hosts.
+
+For the local stack:
 
 ```bash
 make up                      # PDS on localhost:3000, private PLC on 127.0.0.1:2582
@@ -58,9 +82,6 @@ the account on the server's page), and sign in with that password in the
 browser sheet. The redirect lands on a one-shot listener inside the app, which
 dismisses the sheet.
 
-This only works in the Simulator: a physical device cannot reach your Mac's
-`localhost`, and plain-http servers are only accepted for loopback hosts.
-
 ### Release builds
 
 Release builds use `client_id`
@@ -68,6 +89,26 @@ Release builds use `client_id`
 `social.openreel:/oauth/callback`. Sign-in fails with
 `invalid_client_metadata` until `OAuth/ios-client-metadata.json` is served at
 that URL. Keep the hosted copy identical to the committed file.
+
+## Watching the feed
+
+After sign-in the app shows `social.openreel.feed.getFeed` from the backend's
+AppView (ADR-0006, `docs/architecture/media.md`): a page-snapped vertical feed
+of HLS videos, paged by cursor as you scroll, with pull-to-refresh and tap to
+pause. The feed is unauthenticated and comes from the dev server in Release
+builds and by default in Debug builds.
+
+The feed is empty until something is posted. `make seed-videos` posts
+generated clips and waits until they are playable — against the dev server
+with the variables above, or against `make up` with no variables.
+
+Playback follows the directional preloading in the project plan (§5.7.5):
+`FeedPlaybackController` keeps an `AVPlayer` with an item attached for the
+visible reel, the next two, and the previous one, caps preloaded items at a
+few seconds of buffer, releases everything further away, and reuses released
+players. Only the visible player plays. It is a pool of `AVPlayer`s rather
+than one `AVQueuePlayer` because the feed scrolls in both directions and
+items need to be preloaded out of order.
 
 ## Tests
 
@@ -80,5 +121,6 @@ swift test
 
 They cover identifier syntax, DID-document parsing, handle/DID resolution,
 PKCE and DPoP proof construction, authorization-server metadata validation,
-and the session manager's sign-in, restore, refresh, expiry, outage, and
-sign-out paths against a stubbed HTTP transport.
+the session manager's sign-in, restore, refresh, expiry, outage, and
+sign-out paths, and `getFeed` request building and response decoding, against
+a stubbed HTTP transport. Feed UI and playback have no automated tests yet.

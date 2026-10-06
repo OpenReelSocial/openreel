@@ -1,28 +1,36 @@
 import Foundation
 import OpenReelATProto
 
-/// Where this build signs in. Debug builds talk to the local Compose stack
-/// (`make up`) as a loopback OAuth client; release builds are the published
-/// native client whose metadata lives at `clientID`.
+/// Where this build signs in. Debug builds sign in against `Backend.current`:
+/// on the dev server as a native client whose metadata that server hosts, on
+/// the local Compose stack (`OPENREEL_BACKEND=local`) as the spec's loopback
+/// client. Release builds are the published native client whose metadata
+/// lives at `clientID`.
 enum AppAuthConfiguration {
     #if DEBUG
-    /// `infra/pds/compose.yaml` publishes the PDS on 3000 and the private PLC
-    /// directory on 2582. Simulator only: a device cannot reach the Mac's
-    /// localhost.
-    static let localPDS = URL(string: "http://localhost:3000")!
-    static let localPLC = URL(string: "http://localhost:2582")!
+    /// The dev server's nginx serves the metadata document
+    /// (`infra/dev-server/nginx/openreel.zackmurry.com`). The loopback client
+    /// is not used there: in the Simulator, sign-in hung after the server's
+    /// redirect to `http://127.0.0.1`, while a custom-scheme redirect is
+    /// handed back by `ASWebAuthenticationSession` itself.
+    static let client: OAuthClientConfiguration = Backend.current.isLocal
+        ? .loopback(redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!)
+        : OAuthClientConfiguration(
+            clientID: "https://openreel.zackmurry.com/oauth/ios-client-metadata.json",
+            redirectURI: "com.zackmurry.openreel:/oauth/callback"
+        )
 
-    static let client = OAuthClientConfiguration.loopback(
-        redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!
-    )
-
+    /// Both deployments run a private PLC directory, so DIDs resolve there
+    /// rather than at plc.directory; handles resolve through the PDS.
     static let identity = IdentityResolverConfiguration(
-        plcDirectoryURL: localPLC,
-        handleResolverURL: localPDS,
-        allowInsecureLocalhost: true
+        plcDirectoryURL: Backend.current.plcURL,
+        handleResolverURL: Backend.current.pdsURL,
+        allowInsecureLocalhost: Backend.current.isLocal
     )
 
-    static let signInPlaceholder = "alice.pds.example.com or localhost:3000"
+    static let signInPlaceholder = Backend.current.isLocal
+        ? "alice.pds.example.com or localhost:3000"
+        : "you.openreel.zackmurry.com"
     #else
     /// The `client_id` is the URL of `apps/ios/OAuth/ios-client-metadata.json`
     /// as hosted on the project domain (ADR-0001); the redirect scheme is

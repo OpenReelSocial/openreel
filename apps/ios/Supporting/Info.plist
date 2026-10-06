@@ -17,6 +17,19 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 		</dict>
+		<!-- OAuth redirect for Debug builds signing in to the dev server, whose
+		     client metadata is hosted at openreel.zackmurry.com (see
+		     Sources/OpenReel/Auth/AppAuthConfiguration.swift). -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>social.openreel.ios.oauth.dev-server</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.zackmurry.openreel</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
 	</array>
 	<!-- Debug builds sign in against the plain-http PDS from infra/pds on
 	     localhost. This only relaxes ATS for loopback/.local hosts; every
