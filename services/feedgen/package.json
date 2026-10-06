@@ -13,8 +13,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@openreel/db": "workspace:*",
+    "@openreel/lexicons": "workspace:*",
     "@openreel/service-core": "workspace:*",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "kysely": "^0.29.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

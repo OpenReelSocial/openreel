@@ -16,10 +16,18 @@ struct ReelInfoView: View {
                     .overlay(Capsule().stroke(MonoTheme.primary.opacity(0.6)))
             }
 
-            Text(reel.caption)
-                .font(.subheadline)
-                .foregroundStyle(MonoTheme.overlayText)
-                .lineLimit(3)
+            if !reel.caption.isEmpty {
+                Text(reel.caption)
+                    .font(.subheadline)
+                    .foregroundStyle(MonoTheme.overlayText)
+                    .lineLimit(3)
+            }
+
+            if !reel.tags.isEmpty {
+                Text(reel.tags.map { "#\($0)" }.joined(separator: " "))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
 
             ForEach(reel.labels, id: \.self) { label in
                 HStack(spacing: 6) {

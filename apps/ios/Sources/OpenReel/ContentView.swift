@@ -1,9 +1,34 @@
+import OpenReelATProto
 import SwiftUI
 
+@MainActor
 struct ContentView: View {
+    @State private var auth = AuthController()
+    @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
+    @State private var playback = FeedPlaybackController()
+
     var body: some View {
+        Group {
+            switch auth.phase {
+            case .restoring:
+                ProgressView("Signing in…")
+            case let .signedOut(message):
+                SignInView(auth: auth, message: message)
+            case .signingIn:
+                SignInView(auth: auth, message: nil)
+            case .signedIn, .unavailable:
+                tabs
+            }
+        }
+        .tint(MonoTheme.primary)
+        .preferredColorScheme(.dark)
+        .task { await auth.restore() }
+    }
+
+    private var tabs: some View {
         TabView {
-            FeedView()
+            // FeedView pauses playback when another tab hides it.
+            FeedView(store: feed, playback: playback)
                 .monoTabBar()
                 .tabItem { Label("Home", systemImage: "house.fill") }
             PlaceholderTabView(title: "Discover")
@@ -15,12 +40,26 @@ struct ContentView: View {
             PlaceholderTabView(title: "Inbox")
                 .monoTabBar()
                 .tabItem { Label("Inbox", systemImage: "tray") }
-            PlaceholderTabView(title: "Profile")
+            profile
                 .monoTabBar()
                 .tabItem { Label("Profile", systemImage: "person") }
+                .badge(unavailability == nil ? nil : Text("!"))
         }
-        .tint(MonoTheme.primary)
-        .preferredColorScheme(.dark)
+    }
+
+    /// The account screen until there is a real profile.
+    @ViewBuilder
+    private var profile: some View {
+        if let session = auth.session {
+            AccountView(auth: auth, session: session, unavailability: unavailability, isSheet: false)
+        } else {
+            PlaceholderTabView(title: "Profile")
+        }
+    }
+
+    private var unavailability: ServerUnavailability? {
+        if case let .unavailable(unavailability, _) = auth.phase { return unavailability }
+        return nil
     }
 }
 

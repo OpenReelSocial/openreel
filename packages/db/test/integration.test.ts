@@ -23,7 +23,14 @@ import { migrations } from '../src/migrations/index.ts'
 const url = process.env['TEST_DATABASE_URL']
 const hasDb = url !== undefined && url !== ''
 
-const EXPECTED_TABLES = ['actor', 'video_post', 'video_post_stats', 'watch_event']
+const EXPECTED_TABLES = [
+  'actor',
+  'sync_cursor',
+  'video_media',
+  'video_post',
+  'video_post_stats',
+  'watch_event',
+]
 
 describe.skipIf(!hasDb)('migrations against Postgres', () => {
   let db: Kysely<Database>

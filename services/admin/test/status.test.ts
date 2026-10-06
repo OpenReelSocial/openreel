@@ -100,7 +100,14 @@ describe('resolveTargets', () => {
   it('defaults to Compose service names', () => {
     const targets = resolveTargets({})
 
-    expect(targets.map((t) => t.name)).toEqual(['appview', 'feedgen', 'pds', 'postgres', 'redis'])
+    expect(targets.map((t) => t.name)).toEqual([
+      'appview',
+      'feedgen',
+      'pds',
+      'events',
+      'postgres',
+      'redis',
+    ])
     expect(targets[0]?.probe).toEqual({ kind: 'http', url: 'http://appview:3001/health' })
   })
 

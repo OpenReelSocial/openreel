@@ -13,12 +13,18 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@atproto/lexicon": "^0.7.14",
+    "@openreel/db": "workspace:*",
+    "@openreel/lexicons": "workspace:*",
     "@openreel/service-core": "workspace:*",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "kysely": "^0.29.6",
+    "ws": "8.18.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/supertest": "^6.0.3",
+    "@types/ws": "^8.18.1",
     "supertest": "^7.1.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

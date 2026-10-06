@@ -134,6 +134,12 @@ flag the change as potentially breaking in the PR rather than deciding alone.
   the case OpenReel is designed to avoid. The feed URI is the record's own
   AT-URI, so there is no `feedUri` field.
 
+- **Feed queries mirror `app.bsky.feed.*`.** `social.openreel.feed.getFeedSkeleton`
+  has the shape of `app.bsky.feed.getFeedSkeleton` (generators return URIs,
+  the AppView hydrates), and `getFeed` returns
+  `social.openreel.video.defs#postView`, whose `playlist`/`thumbnail` are
+  derived media URLs, not record fields (ADR-0006).
+
 ## Not decided here
 
 - **Swift bindings for the iOS client.** ADR-0002 leaves the Swift generation

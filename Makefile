@@ -120,6 +120,14 @@ pds-secrets: ## Generate local PDS development secrets
 pds-logs: ## Follow PDS logs
 	$(COMPOSE_FULL) logs -f pds
 
+.PHONY: demo-pds-event
+demo-pds-event: ## Create a sample PDS profile and show it at the backend consumer
+	node scripts/demo-pds-event.mjs
+
+.PHONY: seed-videos
+seed-videos: ## Upload demo videos to the PDS and wait until they play in the feed
+	node scripts/seed-videos.mjs
+
 .PHONY: down
 # --remove-orphans also removes the PDS, which is defined in infra/pds and so is
 # an orphan relative to compose.yaml alone. Without it the PDS survives.

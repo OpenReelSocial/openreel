@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- OAuth redirect for the published native client. The atproto OAuth
+	     profile requires the scheme to be the client_id host reversed:
+	     openreel.social -> social.openreel (see OAuth/ios-client-metadata.json). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>social.openreel.ios.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>social.openreel</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+		<!-- OAuth redirect for Debug builds signing in to the dev server, whose
+		     client metadata is hosted at openreel.zackmurry.com (see
+		     Sources/OpenReel/Auth/AppAuthConfiguration.swift). -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>social.openreel.ios.oauth.dev-server</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.zackmurry.openreel</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+	</array>
+	<!-- Debug builds sign in against the plain-http PDS from infra/pds on
+	     localhost. This only relaxes ATS for loopback/.local hosts; every
+	     other connection must still be https. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

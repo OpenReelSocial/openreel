@@ -6,16 +6,27 @@ options:
 settings:
   base:
     SWIFT_VERSION: '5.0'
+packages:
+  # AT Protocol identity, OAuth, and session handling; local so it builds and
+  # tests with the app and can be exercised without the UI.
+  OpenReelATProto:
+    path: Packages/OpenReelATProto
 targets:
   OpenReel:
     type: application
     platform: iOS
     sources:
       - path: Sources/OpenReel
+    dependencies:
+      - package: OpenReelATProto
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: social.openreel.ios
+        # Hand-written for the OAuth callback URL scheme and the local-network
+        # ATS exception; Xcode still merges the INFOPLIST_KEY_* values below
+        # into it at build time.
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Supporting/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: OpenReel
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

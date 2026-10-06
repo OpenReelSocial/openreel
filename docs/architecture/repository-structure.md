@@ -50,11 +50,18 @@ openreel/
 │   │   ├── vitest.config.ts
 │   │   └── .env.example
 │   ├── feedgen/               # same shape                             DEV-018/024
-│   └── admin/                 # internal status page, loopback-bound only
+│   ├── event-consumer/        # Jetstream subscriber + observation API      DEV-043
+│   ├── admin/                 # internal status page, loopback-bound only
+│   └── media/                 # transcodes video blobs to HLS; cdn.conf  ADR-0006
 ├── infra/
-│   └── pds/                   # upstream PDS: config + ops, no app code
-│       ├── compose.yaml       #   overlay, layered in by 'make up'
-│       ├── scripts/           #   generate-secrets.sh
+│   ├── pds/                   # upstream ATProto event infrastructure
+│   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
+│   │   ├── scripts/           #   generate-secrets.sh
+│   │   └── .env.example
+│   └── dev-server/            # shared dev/demo server deployment      ADR-0005
+│       ├── compose.yaml       #   whole backend from GHCR images
+│       ├── nginx/             #   TLS reverse proxy site, installed by hand
+│       ├── scripts/           #   init-env.sh (server .env + secrets)
 │       └── .env.example
 ├── docs/
 │   ├── adr/                   # architecture decision records
@@ -64,6 +71,7 @@ openreel/
 │   └── dev-environment-tasks.yaml
 ├── scripts/
 │   ├── github/                # backlog seeding
+│   ├── seed-videos.mjs        # demo content: upload videos, wait for HLS
 │   └── status.sh              # terminal renderer for the admin status API
 ├── .github/                   # templates, CODEOWNERS, workflows
 ├── .vscode/
@@ -89,7 +97,7 @@ Each appears when the owning task is implemented.
 | Path | Contents | Task |
 | --- | --- | --- |
 | `apps/ios/` | SwiftUI client; `project.yml` for XcodeGen, generated `.xcodeproj` stays uncommitted | DEV-013/014 |
-| `apps/ios/Packages/OpenReelNetworking/` | Swift package for protocol + API access | — |
+| `apps/ios/Packages/OpenReelATProto/` | Swift package for AT Protocol identity resolution, OAuth sign-in, and session handling (ADR-0004). Exists; API access for OpenReel services will build on it | OR-019/027 |
 | `apps/ios/Packages/OpenReelPlayer/` | Swift package for AVFoundation/HLS playback | — |
 | `infra/*.ts`, `infra/lib/` | AWS CDK v2 TypeScript app plus `infra/AGENTS.md`. Not started | DEV-048/049 |
 | `services/gateway/` | Client/backend gateway, **if** the boundary proves necessary | — |
@@ -102,13 +110,14 @@ Each appears when the owning task is implemented.
 ## Conventions
 
 **Operated vs. authored components.** `services/` holds code OpenReel writes —
-`appview`, `feedgen`, `admin`. Components the project runs but does not author live
-under `infra/` instead, because what we own for them is deployment configuration
-and operational tooling rather than source. `infra/pds/` is the first: a Compose
-overlay, an `.env.example`, and a secret-generation script wrapped around the
-upstream `bluesky-social` image. A relay, if OpenReel operates one, belongs there
-too. `infra/` therefore covers both infrastructure-as-code and the configuration
-for operated third-party components.
+`appview`, `feedgen`, `event-consumer`, and `admin`. Components the project runs
+but does not author live under `infra/` instead, because what we own for them is
+deployment configuration and operational tooling rather than source.
+`infra/pds/` is the first: a Compose overlay, an `.env.example`, and a
+secret-generation script around pinned upstream PDS, PLC, and Jetstream images.
+A relay, if OpenReel operates one, belongs there too. `infra/` therefore covers
+both infrastructure-as-code and the configuration for operated third-party
+components.
 
 **Service internals.** Every backend service exposes `createApp()` in
 `src/app.ts` returning a configured Express app without binding a port, and
@@ -159,8 +168,12 @@ in `packages/db/test/` runs only when `TEST_DATABASE_URL` is set, so
 `make test` needs no database.
 
 `make up` is the whole stack — Postgres, Redis, AppView, Feed Generator, admin,
-and the PDS — and finishes by printing the status report, so one command both
-starts the system and shows whether it came up. `make up-core` omits the PDS for
+the PDS, a private PLC directory, upstream Jetstream, and the development event
+consumer — and finishes by printing the status report, so one command both
+starts the system and shows whether it came up. Jetstream consumes the PDS's
+standard `com.atproto.sync.subscribeRepos` stream and gives backend consumers a
+decoded JSON boundary; this local topology does not decide whether OpenReel will
+operate a production relay. `make up-core` omits the PDS/event path for
 work that does not need it; the status page then reports the PDS down, which is
 expected rather than a failure. `make down` passes `--remove-orphans` so it also
 stops the PDS, which is an orphan relative to the root `compose.yaml`.
@@ -178,7 +191,7 @@ deliberate rather than accidental.
 | `entities` | `packages/` | Shared TypeScript packages |
 | `proxy` | `services/gateway/` | Existing `AGENTS.md` name; may not be needed |
 | `py_utils` | `services/classifier/` | Python stays inside the one service that needs it |
-| `processing` | — | Media/transcode pipeline; no owning task yet |
+| `processing` | `services/media/` | Media/transcode pipeline (ADR-0006) |
 | `tools`, `dev` | `scripts/` | Folded together rather than three overlapping directories |
 | `biome.json` | `.prettierrc.json`, `eslint.config.mjs` | Per ADR-0002 |
 | `pyproject.toml`, `uv.lock` | `package.json`, `pnpm-lock.yaml` | A `pyproject.toml` appears under `services/classifier/` later |

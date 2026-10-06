@@ -1,0 +1,12 @@
+{
+  "client_id": "https://openreel.social/oauth/ios-client-metadata.json",
+  "client_name": "OpenReel for iOS",
+  "client_uri": "https://openreel.social",
+  "application_type": "native",
+  "redirect_uris": ["social.openreel:/oauth/callback"],
+  "scope": "atproto transition:generic",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "dpop_bound_access_tokens": true
+}

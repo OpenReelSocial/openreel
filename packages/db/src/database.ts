@@ -27,6 +27,8 @@ export interface Database {
   video_post: VideoPostTable
   watch_event: WatchEventTable
   video_post_stats: VideoPostStatsTable
+  video_media: VideoMediaTable
+  sync_cursor: SyncCursorTable
 }
 
 /** An account seen on the network, keyed by DID. */
@@ -52,6 +54,13 @@ export interface VideoPostTable {
   /** `createdAt` as claimed by the record. */
   created_at: Timestamp
   indexed_at: GeneratedTimestamp
+  /** Feed order: the earlier of `created_at` and first-indexed time. */
+  sort_at: GeneratedTimestamp
+  /** `aspectRatio` from the record; a ratio, not pixel dimensions. */
+  aspect_width: number | null
+  aspect_height: number | null
+  /** The record as indexed (JSON); write it with `JSON.stringify`. */
+  record: ColumnType<Record<string, unknown> | null, string | null, string | null>
 }
 
 /** Index of a `social.openreel.engagement.watchEvent` record. */
@@ -80,6 +89,38 @@ export interface VideoPostStatsTable {
   uri: string
   view_count: Generated<number>
   avg_completion_rate: number | null
+  updated_at: GeneratedTimestamp
+}
+
+export type VideoMediaStatus = 'pending' | 'processing' | 'ready' | 'failed'
+
+/**
+ * Derived HLS renditions of one video blob, and the media service's job queue.
+ * Keyed by blob, not post: posts reusing an upload share renditions.
+ */
+export interface VideoMediaTable {
+  author_did: string
+  /** CID of the source blob on the author's PDS; also the media storage key. */
+  video_cid: string
+  status: ColumnType<VideoMediaStatus, VideoMediaStatus | undefined, VideoMediaStatus>
+  attempts: Generated<number>
+  last_error: string | null
+  /** When a worker took the job; stale claims are retried. */
+  claimed_at: Timestamp | null
+  /** Pixel dimensions of the highest rendition, once ready. */
+  width: number | null
+  height: number | null
+  /** Duration measured from the source by the media pipeline. */
+  duration_ms: number | null
+  ready_at: Timestamp | null
+  created_at: GeneratedTimestamp
+  updated_at: GeneratedTimestamp
+}
+
+/** Where a firehose consumer resumes after a restart (Jetstream `time_us`). */
+export interface SyncCursorTable {
+  name: string
+  cursor: number
   updated_at: GeneratedTimestamp
 }
 
