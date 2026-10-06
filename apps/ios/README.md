@@ -37,8 +37,12 @@ even when the server is down.
 
 ### Debug builds
 
-Debug builds use the spec's loopback development client against the backend
-chosen in `Sources/OpenReel/Backend.swift`:
+Debug builds sign in against the backend chosen in
+`Sources/OpenReel/Backend.swift`. Against the dev server they are a native
+client whose metadata the dev server's nginx hosts at
+`https://openreel.zackmurry.com/oauth/ios-client-metadata.json`, redirecting to
+`com.zackmurry.openreel:/oauth/callback`. Against the local stack they use the
+spec's loopback development client.
 
 - **Dev server (default):** the shared server from ADR-0005 at
   `openreel.zackmurry.com` — PDS, private PLC (`/plc`), AppView

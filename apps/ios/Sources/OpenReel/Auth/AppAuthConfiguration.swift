@@ -1,15 +1,24 @@
 import Foundation
 import OpenReelATProto
 
-/// Where this build signs in. Debug builds are a loopback OAuth client
-/// against `Backend.current` (the dev server, or the local Compose stack with
-/// `OPENREEL_BACKEND=local`); release builds are the published native client
-/// whose metadata lives at `clientID`.
+/// Where this build signs in. Debug builds sign in against `Backend.current`:
+/// on the dev server as a native client whose metadata that server hosts, on
+/// the local Compose stack (`OPENREEL_BACKEND=local`) as the spec's loopback
+/// client. Release builds are the published native client whose metadata
+/// lives at `clientID`.
 enum AppAuthConfiguration {
     #if DEBUG
-    static let client = OAuthClientConfiguration.loopback(
-        redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!
-    )
+    /// The dev server's nginx serves the metadata document
+    /// (`infra/dev-server/nginx/openreel.zackmurry.com`). The loopback client
+    /// is not used there: in the Simulator, sign-in hung after the server's
+    /// redirect to `http://127.0.0.1`, while a custom-scheme redirect is
+    /// handed back by `ASWebAuthenticationSession` itself.
+    static let client: OAuthClientConfiguration = Backend.current.isLocal
+        ? .loopback(redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!)
+        : OAuthClientConfiguration(
+            clientID: "https://openreel.zackmurry.com/oauth/ios-client-metadata.json",
+            redirectURI: "com.zackmurry.openreel:/oauth/callback"
+        )
 
     /// Both deployments run a private PLC directory, so DIDs resolve there
     /// rather than at plc.directory; handles resolve through the PDS.
