@@ -1,28 +1,27 @@
 import Foundation
 import OpenReelATProto
 
-/// Where this build signs in. Debug builds talk to the local Compose stack
-/// (`make up`) as a loopback OAuth client; release builds are the published
-/// native client whose metadata lives at `clientID`.
+/// Where this build signs in. Debug builds are a loopback OAuth client
+/// against `Backend.current` (the dev server, or the local Compose stack with
+/// `OPENREEL_BACKEND=local`); release builds are the published native client
+/// whose metadata lives at `clientID`.
 enum AppAuthConfiguration {
     #if DEBUG
-    /// `infra/pds/compose.yaml` publishes the PDS on 3000 and the private PLC
-    /// directory on 2582. Simulator only: a device cannot reach the Mac's
-    /// localhost.
-    static let localPDS = URL(string: "http://localhost:3000")!
-    static let localPLC = URL(string: "http://localhost:2582")!
-
     static let client = OAuthClientConfiguration.loopback(
         redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!
     )
 
+    /// Both deployments run a private PLC directory, so DIDs resolve there
+    /// rather than at plc.directory; handles resolve through the PDS.
     static let identity = IdentityResolverConfiguration(
-        plcDirectoryURL: localPLC,
-        handleResolverURL: localPDS,
-        allowInsecureLocalhost: true
+        plcDirectoryURL: Backend.current.plcURL,
+        handleResolverURL: Backend.current.pdsURL,
+        allowInsecureLocalhost: Backend.current.isLocal
     )
 
-    static let signInPlaceholder = "alice.pds.example.com or localhost:3000"
+    static let signInPlaceholder = Backend.current.isLocal
+        ? "alice.pds.example.com or localhost:3000"
+        : "you.openreel.zackmurry.com"
     #else
     /// The `client_id` is the URL of `apps/ios/OAuth/ios-client-metadata.json`
     /// as hosted on the project domain (ADR-0001); the redirect scheme is
