@@ -34,8 +34,7 @@ and media at `https://openreel.zackmurry.com/media/`. Locally they are
 <did>/<blob cid>/
   playlist.m3u8          multivariant playlist
   poster.jpg
-  hevc_720/index.m3u8    init_0.mp4, seg_000.m4s, ...
-  avc_720/index.m3u8
+  avc_720/index.m3u8     init_0.mp4, seg_000.m4s, ...
   avc_360/index.m3u8
 ```
 
