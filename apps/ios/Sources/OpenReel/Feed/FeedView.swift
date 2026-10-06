@@ -8,12 +8,14 @@ struct FeedView: View {
     let playback: FeedPlaybackController
 
     @State private var visibleReelID: String?
+    /// Mock feed tabs; every tab shows the same AppView feed for now.
+    @State private var selectedFeed = MockReelProvider.defaultFeed
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.ignoresSafeArea())
+            .background(MonoTheme.background.ignoresSafeArea())
             .task { await store.loadIfNeeded() }
             .onAppear { playback.resume(.hidden) }
             .onDisappear { playback.suspend(.hidden) }
@@ -42,28 +44,38 @@ struct FeedView: View {
     }
 
     private var feed: some View {
-        ScrollView(.vertical) {
-            LazyVStack(spacing: 0) {
-                ForEach(store.reels) { reel in
-                    ReelCellView(
-                        reel: reel,
-                        player: playback.players[reel.id],
-                        isFocused: reel.id == playback.focusedID,
-                        isPaused: playback.isPausedByUser,
-                        hasFailed: playback.failedIDs.contains(reel.id),
-                        onTap: { playback.togglePause() }
-                    )
-                    .containerRelativeFrame(.vertical)
-                    .id(reel.id)
+        // Each reel fills the whole screen, including behind the tab bar, so
+        // the next reel never peeks through a translucent bar. The overlays
+        // are lifted by the bottom safe area instead.
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.reels) { reel in
+                            ReelCellView(
+                                reel: reel,
+                                player: playback.players[reel.id],
+                                isFocused: reel.id == playback.focusedID,
+                                isPaused: playback.isPausedByUser,
+                                hasFailed: playback.failedIDs.contains(reel.id),
+                                bottomInset: geometry.safeAreaInsets.bottom,
+                                onTap: { playback.togglePause() }
+                            )
+                            .containerRelativeFrame(.vertical)
+                            .id(reel.id)
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
+                .scrollPosition(id: $visibleReelID)
+                .scrollTargetBehavior(.paging)
+                .scrollIndicators(.hidden)
+                .refreshable { await store.refresh() }
+                .ignoresSafeArea()
+
+                FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
             }
-            .scrollTargetLayout()
         }
-        .scrollPosition(id: $visibleReelID)
-        .scrollTargetBehavior(.paging)
-        .scrollIndicators(.hidden)
-        .refreshable { await store.refresh() }
-        .ignoresSafeArea()
         .onAppear(perform: focusVisibleReel)
         .onChange(of: visibleReelID) { _, _ in focusVisibleReel() }
         .onChange(of: store.reels) { _, _ in focusVisibleReel() }
@@ -108,4 +120,5 @@ struct FeedView: View {
         store: FeedStore { _ in MockReelProvider.page },
         playback: FeedPlaybackController()
     )
+    .preferredColorScheme(.dark)
 }

@@ -14,6 +14,9 @@ struct Reel: Identifiable, Hashable {
     /// Width over height, when the AppView knows it.
     let aspectRatio: Double?
     let accessibilityLabel: String?
+    /// Moderation labels to show on the reel. The AppView does not return
+    /// labels yet, so this is always empty for real posts.
+    var labels: [ContentLabel] = []
 
     init(post: VideoPostView) {
         id = post.uri
@@ -34,4 +37,10 @@ struct Reel: Identifiable, Hashable {
         guard let aspectRatio else { return true }
         return aspectRatio < 0.8
     }
+}
+
+/// A moderation label shown on a reel, and the labeler that applied it.
+struct ContentLabel: Hashable {
+    let name: String
+    let labeler: String
 }

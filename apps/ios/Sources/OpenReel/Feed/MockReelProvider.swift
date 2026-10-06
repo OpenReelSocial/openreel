@@ -4,6 +4,11 @@ import OpenReelATProto
 /// Canned feed page for SwiftUI previews, which cannot reach the AppView.
 /// Streams are Apple's public HLS example assets, not OpenReel content.
 enum MockReelProvider {
+    /// Placeholder feed tabs until feed generators exist; every tab shows the
+    /// same reels for now.
+    static let feedNames = ["Following", "For You", "Cooking", "Local"]
+    static let defaultFeed = "For You"
+
     static let page = VideoFeedPage(feed: [
         post(
             rkey: "1",

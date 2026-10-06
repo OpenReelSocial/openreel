@@ -6,7 +6,6 @@ struct ContentView: View {
     @State private var auth = AuthController()
     @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
     @State private var playback = FeedPlaybackController()
-    @State private var showingAccount = false
 
     var body: some View {
         Group {
@@ -18,40 +17,71 @@ struct ContentView: View {
             case .signingIn:
                 SignInView(auth: auth, message: nil)
             case .signedIn, .unavailable:
-                feedScreen
+                tabs
             }
         }
+        .tint(MonoTheme.primary)
+        .preferredColorScheme(.dark)
         .task { await auth.restore() }
     }
 
-    private var feedScreen: some View {
-        ZStack(alignment: .topTrailing) {
+    private var tabs: some View {
+        TabView {
+            // FeedView pauses playback when another tab hides it.
             FeedView(store: feed, playback: playback)
-            // FeedView ignores the safe area; this ZStack does not, so the
-            // button lands below the status bar.
-            Button {
-                showingAccount = true
-            } label: {
-                Image(systemName: unavailability == nil ? "person.crop.circle" : "person.crop.circle.badge.exclamationmark")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .padding()
-            }
-            .accessibilityLabel("Account")
+                .monoTabBar()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+            PlaceholderTabView(title: "Discover")
+                .monoTabBar()
+                .tabItem { Label("Discover", systemImage: "safari") }
+            PlaceholderTabView(title: "Create")
+                .monoTabBar()
+                .tabItem { Label("Create", systemImage: "plus.app.fill") }
+            PlaceholderTabView(title: "Inbox")
+                .monoTabBar()
+                .tabItem { Label("Inbox", systemImage: "tray") }
+            profile
+                .monoTabBar()
+                .tabItem { Label("Profile", systemImage: "person") }
+                .badge(unavailability == nil ? nil : Text("!"))
         }
-        .onChange(of: showingAccount) { _, showing in
-            showing ? playback.suspend(.covered) : playback.resume(.covered)
-        }
-        .sheet(isPresented: $showingAccount) {
-            if let session = auth.session {
-                AccountView(auth: auth, session: session, unavailability: unavailability)
-            }
+    }
+
+    /// The account screen until there is a real profile.
+    @ViewBuilder
+    private var profile: some View {
+        if let session = auth.session {
+            AccountView(auth: auth, session: session, unavailability: unavailability, isSheet: false)
+        } else {
+            PlaceholderTabView(title: "Profile")
         }
     }
 
     private var unavailability: ServerUnavailability? {
         if case let .unavailable(unavailability, _) = auth.phase { return unavailability }
         return nil
+    }
+}
+
+/// Stand-in for tabs that don't exist yet.
+struct PlaceholderTabView: View {
+    let title: String
+
+    var body: some View {
+        ZStack {
+            MonoTheme.background.ignoresSafeArea()
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(MonoTheme.secondary)
+        }
+    }
+}
+
+private extension View {
+    /// Tab bar background is set per tab, so every tab applies this.
+    func monoTabBar() -> some View {
+        toolbarBackground(MonoTheme.background, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
     }
 }
 

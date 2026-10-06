@@ -7,6 +7,8 @@ struct AccountView: View {
     let session: OAuthSession
     /// Set when the server could not be reached on launch.
     let unavailability: ServerUnavailability?
+    /// Presented modally (with a Done button) rather than as a tab.
+    var isSheet = true
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSigningOut = false
@@ -52,8 +54,10 @@ struct AccountView: View {
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                if isSheet {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
         }
