@@ -45,6 +45,9 @@ final class FeedPlaybackController {
     private struct ItemObservers {
         let loop: NSObjectProtocol
         let status: NSKeyValueObservation
+        /// Debug-only logging; see `diagnostics(for:player:id:)`.
+        var notifications: [NSObjectProtocol] = []
+        var observations: [NSKeyValueObservation] = []
     }
 
     /// Focuses the reel at `index` and moves the preload window with it.
@@ -138,9 +141,53 @@ final class FeedPlaybackController {
                 self?.failedIDs.insert(id)
             }
         }
-        observers[id] = ItemObservers(loop: loop, status: status)
+        var itemObservers = ItemObservers(loop: loop, status: status)
+        #if DEBUG
+        (itemObservers.notifications, itemObservers.observations) = Self.diagnostics(for: item, player: player, id: id)
+        #endif
+        observers[id] = itemObservers
         players[id] = player
     }
+
+    #if DEBUG
+    /// Logs what AVFoundation is doing with each item (status, why the player
+    /// is waiting, stalls, HLS error-log entries, the variant chosen) so a
+    /// clip that will not play explains itself in the Xcode console.
+    private static func diagnostics(for item: AVPlayerItem, player: AVPlayer, id: String) -> ([NSObjectProtocol], [NSKeyValueObservation]) {
+        let name = id.split(separator: "/").last.map(String.init) ?? id
+        func log(_ message: String) { print("[playback] \(name): \(message)") }
+
+        let center = NotificationCenter.default
+        let notifications = [
+            center.addObserver(forName: .AVPlayerItemNewErrorLogEntry, object: item, queue: .main) { _ in
+                guard let event = item.errorLog()?.events.last else { return }
+                log("HLS error \(event.errorStatusCode) \(event.errorDomain): \(event.errorComment ?? "") \(event.uri ?? "")")
+            },
+            center.addObserver(forName: .AVPlayerItemNewAccessLogEntry, object: item, queue: .main) { _ in
+                guard let event = item.accessLog()?.events.last else { return }
+                log("variant \(event.indicatedBitrate) bps, \(event.numberOfStalls) stalls, \(event.numberOfDroppedVideoFrames) dropped, \(event.uri ?? "")")
+            },
+            center.addObserver(forName: .AVPlayerItemPlaybackStalled, object: item, queue: .main) { _ in
+                log("stalled")
+            },
+            center.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { note in
+                log("failed to play to end: \(String(describing: note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]))")
+            },
+        ]
+        let observations = [
+            item.observe(\.status, options: [.new]) { item, _ in
+                log("item status \(item.status.rawValue)\(item.error.map { " error: \($0)" } ?? "")")
+            },
+            player.observe(\.timeControlStatus, options: [.new]) { [weak item] player, _ in
+                // The player is pooled; ignore it once it has moved on.
+                guard let item, player.currentItem === item else { return }
+                let reason = player.reasonForWaitingToPlay?.rawValue ?? "-"
+                log("timeControlStatus \(player.timeControlStatus.rawValue) (0 paused, 1 waiting, 2 playing), waiting: \(reason)")
+            },
+        ]
+        return (notifications, observations)
+    }
+    #endif
 
     private func release(_ id: String) {
         guard let player = players.removeValue(forKey: id) else { return }
@@ -149,6 +196,8 @@ final class FeedPlaybackController {
         if let observers = observers.removeValue(forKey: id) {
             NotificationCenter.default.removeObserver(observers.loop)
             observers.status.invalidate()
+            observers.notifications.forEach { NotificationCenter.default.removeObserver($0) }
+            observers.observations.forEach { $0.invalidate() }
         }
         if spares.count < Self.preloadAhead {
             spares.append(player)
@@ -166,6 +215,9 @@ final class FeedPlaybackController {
             deactivateAudioSession()
             return
         }
+        #if DEBUG
+        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), \(players.count) loaded")
+        #endif
         if suspensions.isEmpty, !isPausedByUser {
             activateAudioSession()
             player.play()
