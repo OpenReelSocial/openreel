@@ -33,9 +33,13 @@ and ADR-0002 leaves the CDN undecided. The dev server (ADR-0005) has neither.
 4. The AppView's `social.openreel.feed.getFeed` fetches the skeleton and returns
    `social.openreel.video.defs#postView`s with `playlist` and `thumbnail` URLs.
 
-**Renditions.** HEVC 720p, H.264 720p, H.264 360p (never upscaled), in fMP4 with
-4 s segments and aligned 2 s keyframes, behind one multivariant playlist, plus
-a poster JPEG. Renditions are keyed by (author DID, blob CID), so they are
+**Renditions.** H.264 720p and H.264 360p (never upscaled), in fMP4 with 4 s
+segments and aligned 2 s keyframes, behind one multivariant playlist, plus a
+poster JPEG. (Amended 2026-10-06: an HEVC 720p rendition was listed first as
+the plan suggests, but Safari and AVPlayer fetched its first segment and
+stopped, on macOS and in the iOS Simulator, while the H.264 rendition of the
+same video played. HEVC is off until its output passes Apple's
+`mediastreamvalidator`.) Renditions are keyed by (author DID, blob CID), so they are
 immutable and posts reusing a blob share them.
 
 **Storage.** A `MediaStore` interface with a filesystem implementation. An

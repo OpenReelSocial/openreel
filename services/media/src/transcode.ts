@@ -3,10 +3,13 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /**
- * HLS packaging per the project plan (sections 4.3 and 5.7): H.265 first, with
- * H.264 fallbacks, in fMP4 segments. AVPlayer picks the HEVC variant on devices
- * that decode it and falls back to H.264 otherwise; the 360p variant covers
- * poor networks and fast-scroll startup.
+ * HLS packaging per the project plan (sections 4.3 and 5.7), in fMP4 segments.
+ * The plan puts H.265 first with H.264 fallbacks, but the HEVC rendition this
+ * produced did not play in Safari or AVPlayer (macOS and the iOS Simulator
+ * fetched its first segment and gave up; see ADR-0006), so the ladder is H.264
+ * only until HEVC output is checked with Apple's mediastreamvalidator. The
+ * libx265 settings below stay for that. The 360p variant covers poor networks
+ * and fast-scroll startup.
  */
 export interface Rendition {
   name: string
@@ -17,7 +20,6 @@ export interface Rendition {
 }
 
 export const LADDER: readonly Rendition[] = [
-  { name: 'hevc_720', codec: 'hevc', shortSide: 720, maxrate: '1800k' },
   { name: 'avc_720', codec: 'h264', shortSide: 720, maxrate: '2800k' },
   { name: 'avc_360', codec: 'h264', shortSide: 360, maxrate: '700k' },
 ]
