@@ -96,32 +96,25 @@ private struct SpeedHoldGesture: UIGestureRecognizerRepresentable {
 }
 
 /// Shows that the reel is playing at 2×, with how to lock or release it.
-/// Tapping it while locked returns to 1×.
 struct ReelSpeedBadge: View {
     let isHeld: Bool
     let isLocked: Bool
-    let onRelease: () -> Void
 
     var body: some View {
-        Button(action: onRelease) {
-            VStack(spacing: 4) {
-                Label(isLocked ? "2× locked" : "2×", systemImage: isLocked ? "lock.fill" : "forward.fill")
-                    .font(.subheadline.weight(.semibold))
-                if let hint {
-                    Text(hint)
-                        .font(.caption)
-                        .foregroundStyle(MonoTheme.overlayText)
-                }
+        VStack(spacing: 2) {
+            Label(isLocked ? "2× locked" : "2×", systemImage: isLocked ? "lock.fill" : "forward.fill")
+                .font(.caption.weight(.semibold))
+            if let hint {
+                Text(hint)
+                    .font(.caption2)
+                    .foregroundStyle(MonoTheme.overlayText)
             }
-            .foregroundStyle(MonoTheme.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(MonoTheme.scrim.opacity(0.55), in: RoundedRectangle(cornerRadius: 14))
         }
-        .buttonStyle(.plain)
-        .disabled(!isLocked)
-        .accessibilityLabel(isLocked ? "Playing at double speed, locked" : "Playing at double speed")
-        .accessibilityHint(isLocked ? "Plays at normal speed." : "")
+        .foregroundStyle(MonoTheme.primary)
+        // No backing, so a shadow keeps it legible on bright video.
+        .shadow(color: MonoTheme.scrim.opacity(0.6), radius: 3)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
     }
 
     private var hint: String? {

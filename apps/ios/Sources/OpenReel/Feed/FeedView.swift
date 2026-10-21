@@ -10,7 +10,14 @@ struct FeedView: View {
     @State private var visibleReelID: String?
     /// Mock feed tabs; every tab shows the same AppView feed for now.
     @State private var selectedFeed = MockReelProvider.defaultFeed
+    /// The 2× badge is briefly confirming a lock; see `isShowingSpeedBadge`.
+    @State private var isConfirmingSpeedLock = false
+    /// 2× was locked during the current hold, as opposed to a hold that began
+    /// on a reel already locked.
+    @State private var lockedDuringHold = false
     @Environment(\.scenePhase) private var scenePhase
+
+    private static let speedLockConfirmation: Duration = .milliseconds(750)
 
     var body: some View {
         content
@@ -83,16 +90,12 @@ struct FeedView: View {
 
                 VStack(spacing: 12) {
                     FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
-                    if playback.isFastForwarding {
-                        ReelSpeedBadge(
-                            isHeld: playback.isSpeedHeld,
-                            isLocked: playback.isSpeedLocked,
-                            onRelease: { playback.lockSpeed(false) }
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    if isShowingSpeedBadge {
+                        ReelSpeedBadge(isHeld: playback.isSpeedHeld, isLocked: playback.isSpeedLocked)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }
-                .animation(.easeOut(duration: 0.2), value: playback.isFastForwarding)
+                .animation(.easeOut(duration: 0.2), value: isShowingSpeedBadge)
                 .sensoryFeedback(.impact(weight: .light), trigger: playback.isSpeedHeld) { _, held in held }
                 .sensoryFeedback(.impact(weight: .medium), trigger: playback.isSpeedLocked)
                 .opacity(playback.isScrubbing ? 0 : 1)
@@ -103,6 +106,29 @@ struct FeedView: View {
         .onAppear(perform: focusVisibleReel)
         .onChange(of: visibleReelID) { _, _ in focusVisibleReel() }
         .onChange(of: store.reels) { _, _ in focusVisibleReel() }
+        .onChange(of: playback.isSpeedHeld) { _, held in
+            if !held { lockedDuringHold = false }
+        }
+        .task(id: playback.isSpeedLocked) {
+            guard playback.isSpeedLocked else {
+                isConfirmingSpeedLock = false
+                return
+            }
+            if playback.isSpeedHeld { lockedDuringHold = true }
+            isConfirmingSpeedLock = true
+            try? await Task.sleep(for: Self.speedLockConfirmation)
+            guard !Task.isCancelled else { return }
+            isConfirmingSpeedLock = false
+        }
+    }
+
+    /// While holding unlocked, to show the swipe-down hint; briefly after
+    /// locking, to confirm it; and while holding a reel locked earlier, to
+    /// show the swipe-up hint. A locked reel otherwise plays without it.
+    private var isShowingSpeedBadge: Bool {
+        guard playback.isFastForwarding else { return false }
+        if isConfirmingSpeedLock { return true }
+        return playback.isSpeedHeld && !(playback.isSpeedLocked && lockedDuringHold)
     }
 
     private func statusMessage(_ text: String, systemImage: String) -> some View {
