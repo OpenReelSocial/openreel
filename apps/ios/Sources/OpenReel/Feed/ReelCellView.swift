@@ -17,7 +17,7 @@ struct ReelCellView: View {
         ZStack(alignment: .bottom) {
             HStack(alignment: .bottom, spacing: 12) {
                 ReelInfoView(reel: reel)
-                ReelActionRail(authorHandle: reel.authorHandle, isLiked: $isLiked)
+                ReelHeartButton(isLiked: $isLiked)
             }
             .padding(.leading, 16)
             .padding(.trailing, 10)
