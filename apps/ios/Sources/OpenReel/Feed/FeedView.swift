@@ -93,6 +93,8 @@ struct FeedView: View {
                     }
                 }
                 .animation(.easeOut(duration: 0.2), value: playback.isFastForwarding)
+                .sensoryFeedback(.impact(weight: .light), trigger: playback.isSpeedHeld) { _, held in held }
+                .sensoryFeedback(.impact(weight: .medium), trigger: playback.isSpeedLocked)
                 .opacity(playback.isScrubbing ? 0 : 1)
                 .allowsHitTesting(!playback.isScrubbing)
                 .animation(.easeOut(duration: 0.2), value: playback.isScrubbing)

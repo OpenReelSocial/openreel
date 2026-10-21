@@ -43,7 +43,9 @@ struct ReelCellView: View {
                 ReelPlayerView(reel: reel, player: player)
                 scrims
                 status
-                ReelSpeedZones(onHold: onSpeedHold, onLock: onSpeedLock)
+                if #available(iOS 18.0, *) {
+                    ReelSpeedZones(onHold: onSpeedHold, onLock: onSpeedLock)
+                }
             }
         }
         .contentShape(Rectangle())
