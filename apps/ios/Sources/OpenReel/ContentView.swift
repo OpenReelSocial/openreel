@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var auth = AuthController()
     @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
     @State private var playback = FeedPlaybackController()
+    @State private var selectedTab = AppTab.home
 
     var body: some View {
         Group {
@@ -26,62 +27,51 @@ struct ContentView: View {
     }
 
     private var tabs: some View {
-        TabView {
-            // FeedView pauses playback when another tab hides it.
-            FeedView(store: feed, playback: playback)
-                .monoTabBar()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-            PlaceholderTabView(title: "Discover")
-                .monoTabBar()
-                .tabItem { Label("Discover", systemImage: "safari") }
-            PlaceholderTabView(title: "Create")
-                .monoTabBar()
-                .tabItem { Label("Create", systemImage: "plus.app.fill") }
-            PlaceholderTabView(title: "Inbox")
-                .monoTabBar()
-                .tabItem { Label("Inbox", systemImage: "tray") }
-            profile
-                .monoTabBar()
-                .tabItem { Label("Profile", systemImage: "person") }
-                .badge(unavailability == nil ? nil : Text("!"))
+        MainTabView(
+            selection: $selectedTab,
+            // The scrubber and the 2× swipes need sideways and vertical
+            // movement for themselves.
+            isSwipeDisabled: playback.isScrubbing || playback.isSpeedHeld,
+            badgedTab: unavailability == nil ? nil : .profile
+        ) { tab in
+            switch tab {
+            case .home:
+                FeedView(store: feed, playback: playback)
+            case .profile:
+                profile
+            case .discover, .create, .inbox:
+                PlaceholderTabView(tab: tab)
+            }
         }
+        // Every page stays alive, so the feed plays only while it is the
+        // page on screen.
+        .onChange(of: selectedTab, initial: true) { _, tab in
+            if tab == .home {
+                playback.resume(.hidden)
+            } else {
+                playback.suspend(.hidden)
+            }
+        }
+        .onDisappear { playback.suspend(.hidden) }
     }
 
-    /// The account screen until there is a real profile.
     @ViewBuilder
     private var profile: some View {
         if let session = auth.session {
-            AccountView(auth: auth, session: session, unavailability: unavailability, isSheet: false)
+            ProfileView(
+                auth: auth,
+                session: session,
+                unavailability: unavailability,
+                reels: feed.reels.filter { $0.authorDID == session.did.rawValue }
+            )
         } else {
-            PlaceholderTabView(title: "Profile")
+            PlaceholderTabView(tab: .profile)
         }
     }
 
     private var unavailability: ServerUnavailability? {
         if case let .unavailable(unavailability, _) = auth.phase { return unavailability }
         return nil
-    }
-}
-
-/// Stand-in for tabs that don't exist yet.
-struct PlaceholderTabView: View {
-    let title: String
-
-    var body: some View {
-        ZStack {
-            MonoTheme.background.ignoresSafeArea()
-            Text(title)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(MonoTheme.secondary)
-        }
-    }
-}
-
-private extension View {
-    /// Tab bar background is set per tab, so every tab applies this.
-    func monoTabBar() -> some View {
-        toolbarBackground(MonoTheme.background, for: .tabBar)
-            .toolbarBackground(.visible, for: .tabBar)
     }
 }
 

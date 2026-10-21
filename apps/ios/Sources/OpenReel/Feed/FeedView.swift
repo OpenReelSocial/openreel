@@ -24,8 +24,6 @@ struct FeedView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(MonoTheme.background.ignoresSafeArea())
             .task { await store.loadIfNeeded() }
-            .onAppear { playback.resume(.hidden) }
-            .onDisappear { playback.suspend(.hidden) }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active {
                     playback.resume(.background)
