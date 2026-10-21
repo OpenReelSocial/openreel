@@ -49,6 +49,20 @@ final class FeedPlaybackController {
     /// The viewer is dragging the focused reel's progress bar. Playback is
     /// held until they let go.
     private(set) var isScrubbing = false
+    /// The viewer is touching and holding the side of the focused reel.
+    private(set) var isSpeedHeld = false
+    /// 2× stays on after the hold ends. Cleared on swipe.
+    private(set) var isSpeedLocked = false
+    /// The viewer swiped up to release 2× during the current hold, so it
+    /// stays at 1× until they lift their finger.
+    private(set) var isHoldReleased = false
+
+    /// The focused reel is playing at `fastRate`.
+    var isFastForwarding: Bool {
+        isSpeedLocked || (isSpeedHeld && !isHoldReleased)
+    }
+
+    static let fastRate: Float = 2
 
     @ObservationIgnored private var suspensions: Set<Suspension> = []
     /// The newest scrub position not yet sought; see `scrub(_:)`.
@@ -75,6 +89,9 @@ final class FeedPlaybackController {
             isPausedByUser = false
             isScrubbing = false
             pendingScrubTime = nil
+            isSpeedHeld = false
+            isSpeedLocked = false
+            isHoldReleased = false
         }
         // Pause the outgoing clip before anything else can start.
         for (id, player) in players where id != focused.id {
@@ -110,6 +127,27 @@ final class FeedPlaybackController {
 
     func togglePause() {
         isPausedByUser.toggle()
+        updatePlayback()
+    }
+
+    /// Plays the focused reel at 2× while the viewer holds the side of it,
+    /// even if they had paused it.
+    func holdForSpeed(_ isHolding: Bool) {
+        isSpeedHeld = isHolding
+        isHoldReleased = false
+        updatePlayback()
+    }
+
+    /// Keeps 2× on after the hold ends (swipe down), or returns to 1× (swipe
+    /// up, or tapping the badge). Releasing mid-hold also drops the hold's 2×.
+    func lockSpeed(_ locked: Bool) {
+        isSpeedLocked = locked
+        isHoldReleased = !locked && isSpeedHeld
+        if locked {
+            // Locking means "keep playing like this"; a paused reel would
+            // otherwise stop again when the hold ends.
+            isPausedByUser = false
+        }
         updatePlayback()
     }
 
@@ -280,10 +318,15 @@ final class FeedPlaybackController {
             return
         }
         #if DEBUG
-        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), scrubbing \(isScrubbing), \(players.count) loaded")
+        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), scrubbing \(isScrubbing), fast \(isFastForwarding), \(players.count) loaded")
         #endif
-        if suspensions.isEmpty, !isPausedByUser, !isScrubbing {
+        let isHeldFast = isSpeedHeld && !isHoldReleased
+        if suspensions.isEmpty, !isScrubbing, !isPausedByUser || isHeldFast {
             activateAudioSession()
+            // play() starts at defaultRate, and changes the rate of a player
+            // that is already playing. Set on every play because players are
+            // pooled across reels.
+            player.defaultRate = isFastForwarding ? Self.fastRate : 1
             player.play()
         } else {
             player.pause()

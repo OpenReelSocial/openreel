@@ -9,10 +9,13 @@ struct ReelCellView: View {
     let hasFailed: Bool
     /// The viewer is dragging this reel's progress bar.
     var isScrubbing = false
+    var isSpeedLocked = false
     /// Height of the tab bar and home indicator the overlays must clear.
     var bottomInset: CGFloat = 0
     let onTap: () -> Void
     var onScrub: (ScrubEvent) -> Void = { _ in }
+    var onSpeedHold: (Bool) -> Void = { _ in }
+    var onSpeedLock: (Bool) -> Void = { _ in }
 
     @State private var isLiked = false
 
@@ -40,11 +43,15 @@ struct ReelCellView: View {
                 ReelPlayerView(reel: reel, player: player)
                 scrims
                 status
+                ReelSpeedZones(onHold: onSpeedHold, onLock: onSpeedLock)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityAction(named: Text(isPaused ? "Play" : "Pause"), onTap)
+        .accessibilityAction(named: Text(isSpeedLocked ? "Play at normal speed" : "Play at double speed")) {
+            onSpeedLock(!isSpeedLocked)
+        }
     }
 
     @ViewBuilder

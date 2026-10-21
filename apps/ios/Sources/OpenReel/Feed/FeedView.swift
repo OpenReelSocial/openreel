@@ -56,12 +56,16 @@ struct FeedView: View {
                                 reel: reel,
                                 player: playback.players[reel.id],
                                 isFocused: reel.id == playback.focusedID,
-                                isPaused: playback.isPausedByUser,
+                                // Holding for 2× plays a paused reel.
+                                isPaused: playback.isPausedByUser && !playback.isFastForwarding,
                                 hasFailed: playback.failedIDs.contains(reel.id),
                                 isScrubbing: playback.isScrubbing && reel.id == playback.focusedID,
+                                isSpeedLocked: playback.isSpeedLocked && reel.id == playback.focusedID,
                                 bottomInset: geometry.safeAreaInsets.bottom,
                                 onTap: { playback.togglePause() },
-                                onScrub: playback.scrub
+                                onScrub: playback.scrub,
+                                onSpeedHold: playback.holdForSpeed,
+                                onSpeedLock: playback.lockSpeed
                             )
                             .containerRelativeFrame(.vertical)
                             .id(reel.id)
@@ -72,13 +76,26 @@ struct FeedView: View {
                 .scrollPosition(id: $visibleReelID)
                 .scrollTargetBehavior(.paging)
                 .scrollIndicators(.hidden)
+                // The swipes that lock and release 2× must not page the feed.
+                .scrollDisabled(playback.isSpeedHeld)
                 .refreshable { await store.refresh() }
                 .ignoresSafeArea()
 
-                FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
-                    .opacity(playback.isScrubbing ? 0 : 1)
-                    .allowsHitTesting(!playback.isScrubbing)
-                    .animation(.easeOut(duration: 0.2), value: playback.isScrubbing)
+                VStack(spacing: 12) {
+                    FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
+                    if playback.isFastForwarding {
+                        ReelSpeedBadge(
+                            isHeld: playback.isSpeedHeld,
+                            isLocked: playback.isSpeedLocked,
+                            onRelease: { playback.lockSpeed(false) }
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+                .animation(.easeOut(duration: 0.2), value: playback.isFastForwarding)
+                .opacity(playback.isScrubbing ? 0 : 1)
+                .allowsHitTesting(!playback.isScrubbing)
+                .animation(.easeOut(duration: 0.2), value: playback.isScrubbing)
             }
         }
         .onAppear(perform: focusVisibleReel)
