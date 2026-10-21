@@ -5,6 +5,10 @@
 //   make seed-videos                          # 6 generated clips, local stack
 //   VIDEO_DIR=~/clips make seed-videos        # your own .mp4/.mov files
 //
+// A clip's caption comes from its file name unless a JSON file with the same
+// name sits beside it (clip.mp4 -> clip.json) giving {"caption", "tags"}.
+// New accounts are named demo-xxxxxx; set HANDLE_PREFIX to change "demo".
+//
 // Against the dev server (sign-up needs an invite there):
 //   PDS_URL=https://openreel.zackmurry.com \
 //   APPVIEW_URL=https://openreel.zackmurry.com/appview \
@@ -15,13 +19,14 @@
 
 import { Buffer } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 
 const pdsUrl = (process.env.PDS_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
 const appviewUrl = (process.env.APPVIEW_URL ?? 'http://localhost:3001').replace(/\/+$/, '')
 const handleDomain = process.env.HANDLE_DOMAIN ?? '.pds.example.com'
+const handlePrefix = process.env.HANDLE_PREFIX ?? 'demo'
 const count = Number(process.env.COUNT ?? 6)
 
 async function jsonRequest(url, init = {}) {
@@ -68,8 +73,8 @@ async function session() {
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 6)
   const password = `openreel-demo-${crypto.randomUUID()}`
   const account = await post('com.atproto.server.createAccount', {
-    handle: `demo-${suffix}${handleDomain}`,
-    email: `demo-${suffix}@example.com`,
+    handle: `${handlePrefix}-${suffix}${handleDomain}`,
+    email: `${handlePrefix}-${suffix}@example.com`,
     password,
     ...(inviteCode ? { inviteCode } : {}),
   })
@@ -128,11 +133,17 @@ function clipsFromDir(dir) {
   return readdirSync(dir)
     .filter((name) => types[extname(name).toLowerCase()])
     .sort()
-    .map((name) => ({
-      path: join(dir, name),
-      caption: basename(name, extname(name)).replaceAll(/[-_]+/g, ' '),
-      mimeType: types[extname(name).toLowerCase()],
-    }))
+    .map((name) => {
+      const stem = basename(name, extname(name))
+      const sidecar = join(dir, `${stem}.json`)
+      const meta = existsSync(sidecar) ? JSON.parse(readFileSync(sidecar, 'utf8')) : {}
+      return {
+        path: join(dir, name),
+        caption: meta.caption ?? stem.replaceAll(/[-_]+/g, ' '),
+        tags: meta.tags,
+        mimeType: types[extname(name).toLowerCase()],
+      }
+    })
 }
 
 function probe(path) {
@@ -196,6 +207,7 @@ for (const clip of clips) {
         $type: 'social.openreel.video.post',
         video: upload.blob,
         caption: clip.caption,
+        ...(clip.tags?.length ? { tags: clip.tags } : {}),
         ...probe(clip.path),
         createdAt: new Date().toISOString(),
       },
