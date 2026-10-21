@@ -50,21 +50,26 @@ struct MainTabView<Page: View>: View {
     @State private var scrolledTab: AppTab?
 
     var body: some View {
-        ScrollView(.horizontal) {
-            // Not lazy: five pages, and each keeps its state off screen.
-            HStack(spacing: 0) {
-                ForEach(AppTab.allCases) { tab in
-                    page(tab)
-                        .containerRelativeFrame([.horizontal, .vertical])
-                        .id(tab)
+        GeometryReader { geometry in
+            ScrollView(.horizontal) {
+                // Not lazy: five pages, and each keeps its state off screen.
+                HStack(spacing: 0) {
+                    ForEach(AppTab.allCases) { tab in
+                        // Sized from the reader, not containerRelativeFrame:
+                        // that never settled with the feed's paging scroll
+                        // view nested inside and froze the app on launch.
+                        page(tab)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .id(tab)
+                    }
                 }
+                .scrollTargetLayout()
             }
-            .scrollTargetLayout()
+            .scrollPosition(id: $scrolledTab)
+            .scrollTargetBehavior(.paging)
+            .scrollIndicators(.hidden)
+            .scrollDisabled(isSwipeDisabled)
         }
-        .scrollPosition(id: $scrolledTab)
-        .scrollTargetBehavior(.paging)
-        .scrollIndicators(.hidden)
-        .scrollDisabled(isSwipeDisabled)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             MonoTabBar(selection: $selection, badgedTab: badgedTab)
         }
