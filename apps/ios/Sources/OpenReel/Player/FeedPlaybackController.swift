@@ -330,7 +330,10 @@ final class FeedPlaybackController {
             player.play()
         } else {
             player.pause()
-            if !suspensions.isEmpty {
+            // Deactivating blocks the main thread for a moment, which showed
+            // as a hitch halfway through swiping to another section. Pausing
+            // is enough there; give the audio back only when leaving the app.
+            if suspensions.contains(.background) {
                 deactivateAudioSession()
             }
         }
