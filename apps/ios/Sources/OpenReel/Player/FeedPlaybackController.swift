@@ -1,6 +1,16 @@
 import AVFoundation
 import Observation
 
+/// A drag along the focused reel's progress bar, as `ReelScrubber` reports it.
+enum ScrubEvent: Equatable {
+    case began
+    /// The finger moved; show the frame at this time.
+    case moved(to: TimeInterval)
+    /// The finger lifted here. VoiceOver's adjustable action also sends this
+    /// on its own, as a single seek.
+    case ended(at: TimeInterval)
+}
+
 /// Owns every `AVPlayer` in the feed and implements directional preloading
 /// (project plan §5.7.5):
 ///
@@ -36,8 +46,14 @@ final class FeedPlaybackController {
     private(set) var isPausedByUser = false
     /// Reels whose item failed to load, so the cell can say so.
     private(set) var failedIDs: Set<String> = []
+    /// The viewer is dragging the focused reel's progress bar. Playback is
+    /// held until they let go.
+    private(set) var isScrubbing = false
 
     @ObservationIgnored private var suspensions: Set<Suspension> = []
+    /// The newest scrub position not yet sought; see `scrub(_:)`.
+    @ObservationIgnored private var pendingScrubTime: CMTime?
+    @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var observers: [String: ItemObservers] = [:]
     @ObservationIgnored private var spares: [AVPlayer] = []
     @ObservationIgnored private var audioSessionActive = false
@@ -57,6 +73,8 @@ final class FeedPlaybackController {
 
         if focused.id != focusedID {
             isPausedByUser = false
+            isScrubbing = false
+            pendingScrubTime = nil
         }
         // Pause the outgoing clip before anything else can start.
         for (id, player) in players where id != focused.id {
@@ -93,6 +111,52 @@ final class FeedPlaybackController {
     func togglePause() {
         isPausedByUser.toggle()
         updatePlayback()
+    }
+
+    /// Moves the focused reel's playback position.
+    ///
+    /// While the finger moves, only one seek runs at a time and each new
+    /// position replaces any still waiting, so the frame keeps up with the
+    /// finger instead of working through stale seeks (Apple's "chase time",
+    /// QA1820). Seeks are exact: keyframes are 2 s apart, so a tolerant seek
+    /// would jump in steps. Letting go seeks to where the finger lifted and
+    /// resumes playback unless the viewer had paused.
+    func scrub(_ event: ScrubEvent) {
+        guard let focusedID, let player = players[focusedID] else { return }
+        switch event {
+        case .began:
+            isScrubbing = true
+            updatePlayback()
+        case let .moved(seconds):
+            guard isScrubbing else { return }
+            pendingScrubTime = CMTime(seconds: seconds, preferredTimescale: 600)
+            seekToPendingScrubTime(on: player)
+        case let .ended(seconds):
+            isScrubbing = false
+            pendingScrubTime = nil
+            // Supersedes any seek still running.
+            player.seek(
+                to: CMTime(seconds: seconds, preferredTimescale: 600),
+                toleranceBefore: .zero,
+                toleranceAfter: .zero
+            )
+            updatePlayback()
+        }
+    }
+
+    private func seekToPendingScrubTime(on player: AVPlayer) {
+        guard !isSeeking, let time = pendingScrubTime else { return }
+        pendingScrubTime = nil
+        isSeeking = true
+        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak player] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isSeeking = false
+                if self.isScrubbing, let player {
+                    self.seekToPendingScrubTime(on: player)
+                }
+            }
+        }
     }
 
     func suspend(_ reason: Suspension) {
@@ -216,9 +280,9 @@ final class FeedPlaybackController {
             return
         }
         #if DEBUG
-        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), \(players.count) loaded")
+        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), scrubbing \(isScrubbing), \(players.count) loaded")
         #endif
-        if suspensions.isEmpty, !isPausedByUser {
+        if suspensions.isEmpty, !isPausedByUser, !isScrubbing {
             activateAudioSession()
             player.play()
         } else {

@@ -58,8 +58,10 @@ struct FeedView: View {
                                 isFocused: reel.id == playback.focusedID,
                                 isPaused: playback.isPausedByUser,
                                 hasFailed: playback.failedIDs.contains(reel.id),
+                                isScrubbing: playback.isScrubbing && reel.id == playback.focusedID,
                                 bottomInset: geometry.safeAreaInsets.bottom,
-                                onTap: { playback.togglePause() }
+                                onTap: { playback.togglePause() },
+                                onScrub: playback.scrub
                             )
                             .containerRelativeFrame(.vertical)
                             .id(reel.id)
@@ -74,6 +76,9 @@ struct FeedView: View {
                 .ignoresSafeArea()
 
                 FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
+                    .opacity(playback.isScrubbing ? 0 : 1)
+                    .allowsHitTesting(!playback.isScrubbing)
+                    .animation(.easeOut(duration: 0.2), value: playback.isScrubbing)
             }
         }
         .onAppear(perform: focusVisibleReel)

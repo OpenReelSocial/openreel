@@ -7,9 +7,12 @@ struct ReelCellView: View {
     let isFocused: Bool
     let isPaused: Bool
     let hasFailed: Bool
+    /// The viewer is dragging this reel's progress bar.
+    var isScrubbing = false
     /// Height of the tab bar and home indicator the overlays must clear.
     var bottomInset: CGFloat = 0
     let onTap: () -> Void
+    var onScrub: (ScrubEvent) -> Void = { _ in }
 
     @State private var isLiked = false
 
@@ -21,10 +24,15 @@ struct ReelCellView: View {
             }
             .padding(.leading, 16)
             .padding(.trailing, 10)
-            .padding(.bottom, 18)
+            // Clears the scrubber's touch target.
+            .padding(.bottom, ReelScrubber.height)
+            // Out of the way so the frame being scrubbed to is visible.
+            .opacity(isScrubbing ? 0 : 1)
+            .allowsHitTesting(!isScrubbing)
 
-            ReelProgressBar(player: isFocused ? player : nil)
+            ReelScrubber(player: isFocused ? player : nil, onScrub: onScrub)
         }
+        .animation(.easeOut(duration: 0.2), value: isScrubbing)
         .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background {
@@ -47,7 +55,7 @@ struct ReelCellView: View {
                 .foregroundStyle(MonoTheme.primary)
                 .padding()
                 .background(MonoTheme.scrim.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
-        } else if isFocused && isPaused {
+        } else if isFocused && isPaused && !isScrubbing {
             Image(systemName: "play.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(MonoTheme.primary.opacity(0.8))
@@ -72,33 +80,5 @@ struct ReelCellView: View {
             .frame(height: 320)
         }
         .allowsHitTesting(false)
-    }
-}
-
-/// Thin playback position indicator along the bottom edge of a reel. Reads
-/// the pooled player's clock; `nil` (an unfocused reel) shows an empty track.
-struct ReelProgressBar: View {
-    let player: AVPlayer?
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(MonoTheme.progressTrack)
-                    Rectangle()
-                        .fill(MonoTheme.accent)
-                        .frame(width: geometry.size.width * progress)
-                }
-            }
-        }
-        .frame(height: 2)
-        .accessibilityHidden(true)
-    }
-
-    private var progress: Double {
-        guard let player, let duration = player.currentItem?.duration.seconds,
-              duration.isFinite, duration > 0
-        else { return 0 }
-        return min(max(player.currentTime().seconds / duration, 0), 1)
     }
 }
