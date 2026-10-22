@@ -8,9 +8,12 @@ export {
   ComAtprotoRepoStrongRef,
   SocialOpenreelEngagementCompletionRate,
   SocialOpenreelEngagementWatchEvent,
+  SocialOpenreelFeedDefs,
+  SocialOpenreelFeedDescribeFeedGenerator,
   SocialOpenreelFeedGenerator,
   SocialOpenreelFeedGetFeed,
   SocialOpenreelFeedGetFeedSkeleton,
+  SocialOpenreelFeedGetSuggestedFeeds,
   SocialOpenreelVideoDefs,
   SocialOpenreelVideoPost,
 } from './generated/index.ts'

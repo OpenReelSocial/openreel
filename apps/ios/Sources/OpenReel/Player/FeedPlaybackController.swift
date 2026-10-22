@@ -13,6 +13,11 @@ import Observation
 ///
 /// Only the focused player ever plays, and every other player is paused
 /// before it starts, which is what prevents audio bleed between clips.
+///
+/// It also measures each watch: from when a reel is focused (or playback
+/// resumes) until the viewer swipes away (or playback is suspended), as
+/// loops times the clip length plus the change in position. Wall-clock time is
+/// not used, so buffering and taps to pause do not count.
 @MainActor
 @Observable
 final class FeedPlaybackController {
@@ -37,10 +42,24 @@ final class FeedPlaybackController {
     /// Reels whose item failed to load, so the cell can say so.
     private(set) var failedIDs: Set<String> = []
 
+    /// Called with each finished watch, however short; see `WatchEventRecorder`.
+    @ObservationIgnored var onWatchFinished: (@MainActor (WatchSession) -> Void)?
+
     @ObservationIgnored private var suspensions: Set<Suspension> = []
     @ObservationIgnored private var observers: [String: ItemObservers] = [:]
     @ObservationIgnored private var spares: [AVPlayer] = []
     @ObservationIgnored private var audioSessionActive = false
+    @ObservationIgnored private var focusedReel: Reel?
+    @ObservationIgnored private var watch: Watch?
+    /// Times each loaded reel played to the end and looped.
+    @ObservationIgnored private var loopCounts: [String: Int] = [:]
+
+    /// The watch in progress: where it started and how many loops it began with.
+    private struct Watch {
+        let id: String
+        let startSeconds: Double
+        let startLoops: Int
+    }
 
     private struct ItemObservers {
         let loop: NSObjectProtocol
@@ -55,8 +74,11 @@ final class FeedPlaybackController {
         guard reels.indices.contains(index) else { return }
         let focused = reels[index]
 
-        if focused.id != focusedID {
+        let isNewFocus = focused.id != focusedID
+        if isNewFocus {
             isPausedByUser = false
+            // Before the outgoing player can be released and lose its position.
+            finishWatch()
         }
         // Pause the outgoing clip before anything else can start.
         for (id, player) in players where id != focused.id {
@@ -78,6 +100,10 @@ final class FeedPlaybackController {
         }
 
         focusedID = focused.id
+        focusedReel = focused
+        if isNewFocus {
+            startWatch()
+        }
         updatePlayback()
     }
 
@@ -96,17 +122,26 @@ final class FeedPlaybackController {
     }
 
     func suspend(_ reason: Suspension) {
+        if suspensions.isEmpty {
+            // Backgrounding may be the last chance to report this watch.
+            finishWatch()
+        }
         suspensions.insert(reason)
         updatePlayback()
     }
 
     func resume(_ reason: Suspension) {
         suspensions.remove(reason)
+        if suspensions.isEmpty, watch == nil {
+            startWatch()
+        }
         updatePlayback()
     }
 
     /// Drops every player, e.g. when the feed is replaced wholesale.
     func releaseAll() {
+        finishWatch()
+        focusedReel = nil
         for id in Array(players.keys) {
             release(id)
         }
@@ -128,10 +163,11 @@ final class FeedPlaybackController {
             forName: .AVPlayerItemDidPlayToEndTime,
             object: item,
             queue: .main
-        ) { [weak player] _ in
+        ) { [weak self, weak player] _ in
             // Only the focused player plays, so only it reaches the end.
             player?.seek(to: .zero)
             player?.play()
+            Task { @MainActor in self?.loopCounts[id, default: 0] += 1 }
         }
         let status = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard item.status == .failed else { return }
@@ -190,6 +226,7 @@ final class FeedPlaybackController {
     #endif
 
     private func release(_ id: String) {
+        loopCounts[id] = nil
         guard let player = players.removeValue(forKey: id) else { return }
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -202,6 +239,40 @@ final class FeedPlaybackController {
         if spares.count < Self.preloadAhead {
             spares.append(player)
         }
+    }
+
+    // MARK: - Watch measurement
+
+    private func startWatch() {
+        guard let id = focusedID, suspensions.isEmpty else { return }
+        watch = Watch(id: id, startSeconds: position(of: id), startLoops: loopCounts[id, default: 0])
+    }
+
+    /// Ends the watch in progress and reports it. Must run while the reel's
+    /// player still holds its item.
+    private func finishWatch() {
+        guard let watch else { return }
+        self.watch = nil
+        guard let reel = focusedReel, reel.id == watch.id, let player = players[watch.id] else { return }
+
+        let itemSeconds = player.currentItem?.duration.seconds
+        let knownDuration = reel.durationMs.map { Double($0) / 1000 }
+            ?? (itemSeconds.flatMap { $0.isFinite ? $0 : nil })
+        guard let durationSeconds = knownDuration, durationSeconds > 0 else { return }
+
+        let loops = loopCounts[watch.id, default: 0] - watch.startLoops
+        let watched = Double(loops) * durationSeconds + position(of: watch.id) - watch.startSeconds
+        onWatchFinished?(WatchSession(
+            reel: reel,
+            watchedMs: Int((max(0, watched) * 1000).rounded()),
+            videoDurationMs: Int((durationSeconds * 1000).rounded()),
+            rewatchCount: max(0, loops)
+        ))
+    }
+
+    private func position(of id: String) -> Double {
+        let seconds = players[id]?.currentTime().seconds ?? 0
+        return seconds.isFinite ? seconds : 0
     }
 
     private static func makePlayer() -> AVPlayer {
@@ -261,4 +332,14 @@ final class FeedPlaybackController {
         }
         audioSessionActive = false
     }
+}
+
+/// One continuous watch of a reel, measured by `FeedPlaybackController`.
+struct WatchSession {
+    let reel: Reel
+    /// Playback during the watch, loops included.
+    let watchedMs: Int
+    let videoDurationMs: Int
+    /// Times the reel looped during the watch.
+    let rewatchCount: Int
 }

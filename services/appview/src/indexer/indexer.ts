@@ -1,11 +1,13 @@
 import type { Database } from '@openreel/db'
 import type { AtprotoIdentity } from '@openreel/service-core'
-import type { Kysely } from 'kysely'
+import { sql, type Kysely } from 'kysely'
 
 import type { AccountEvent, CommitEvent, IdentityEvent, JetstreamEvent } from './events.ts'
 import { readVideoPost } from './video-post.ts'
+import { readWatchEvent } from './watch-event.ts'
 
 export const VIDEO_POST_COLLECTION = 'social.openreel.video.post'
+export const WATCH_EVENT_COLLECTION = 'social.openreel.engagement.watchEvent'
 
 /** Account statuses whose content must no longer be served. */
 const REMOVED_STATUSES = new Set(['deleted', 'takendown'])
@@ -32,6 +34,7 @@ export class Indexer {
     switch (event.kind) {
       case 'commit':
         if (event.commit.collection === VIDEO_POST_COLLECTION) await this.#videoPost(event)
+        else if (event.commit.collection === WATCH_EVENT_COLLECTION) await this.#watchEvent(event)
         return
       case 'identity':
         await this.#identityChanged(event)
@@ -84,6 +87,60 @@ export class Indexer {
         .values({ author_did: event.did, video_cid: fields.videoCid })
         .onConflict((oc) => oc.columns(['author_did', 'video_cid']).doNothing())
         .execute()
+      // Watch events can be indexed before their post; count them now.
+      await refreshStats(tx, [uri])
+    })
+  }
+
+  async #watchEvent(event: CommitEvent): Promise<void> {
+    const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
+
+    if (event.commit.operation === 'delete') {
+      await this.#db.transaction().execute(async (tx) => {
+        const deleted = await tx
+          .deleteFrom('watch_event')
+          .where('uri', '=', uri)
+          .returning('subject_uri')
+          .execute()
+        await refreshStats(
+          tx,
+          deleted.map((row) => row.subject_uri),
+        )
+      })
+      return
+    }
+
+    const fields = event.commit.record && readWatchEvent(event.commit.record)
+    if (fields === undefined || event.commit.cid === undefined) {
+      console.warn(`[appview] skipping invalid ${WATCH_EVENT_COLLECTION} record ${uri}`)
+      return
+    }
+
+    await this.#ensureActor(event.did)
+    const columns = {
+      cid: event.commit.cid,
+      subject_uri: fields.subjectUri,
+      subject_cid: fields.subjectCid,
+      watch_duration_ms: fields.watchDurationMs,
+      completion_rate: fields.completionRate,
+      sound_enabled: fields.soundEnabled,
+      rewatch_count: fields.rewatchCount,
+      created_at: fields.createdAt,
+    }
+
+    await this.#db.transaction().execute(async (tx) => {
+      // An edit could point the event at another post; recount the old one too.
+      const previous = await tx
+        .selectFrom('watch_event')
+        .select('subject_uri')
+        .where('uri', '=', uri)
+        .executeTakeFirst()
+      await tx
+        .insertInto('watch_event')
+        .values({ uri, actor_did: event.did, ...columns })
+        .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+        .execute()
+      await refreshStats(tx, [fields.subjectUri, ...(previous ? [previous.subject_uri] : [])])
     })
   }
 
@@ -99,7 +156,18 @@ export class Indexer {
   async #accountChanged(event: AccountEvent): Promise<void> {
     const { active, status } = event.account
     if (active || status === undefined || !REMOVED_STATUSES.has(status)) return
-    await this.#db.deleteFrom('video_post').where('author_did', '=', event.did).execute()
+    await this.#db.transaction().execute(async (tx) => {
+      await tx.deleteFrom('video_post').where('author_did', '=', event.did).execute()
+      const watched = await tx
+        .deleteFrom('watch_event')
+        .where('actor_did', '=', event.did)
+        .returning('subject_uri')
+        .execute()
+      await refreshStats(
+        tx,
+        watched.map((row) => row.subject_uri),
+      )
+    })
   }
 
   /** Inserts an actor row the first time a DID is seen, resolving its handle. */
@@ -128,4 +196,39 @@ export class Indexer {
       return null
     }
   }
+}
+
+/**
+ * Recomputes `video_post_stats` for each post from its indexed watch events.
+ * Counting rather than incrementing keeps replays idempotent: indexing the same
+ * event twice leaves the same numbers. Posts that are not indexed are skipped
+ * (the stats row references the post); indexing the post recounts it.
+ */
+async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void> {
+  const unique = [...new Set(uris)]
+  if (unique.length === 0) return
+  await db
+    .insertInto('video_post_stats')
+    .columns(['uri', 'view_count', 'avg_completion_rate', 'updated_at'])
+    .expression(
+      db
+        .selectFrom('video_post as p')
+        .leftJoin('watch_event as w', 'w.subject_uri', 'p.uri')
+        .select([
+          'p.uri',
+          (eb) => eb.fn.count<number>('w.uri').as('view_count'),
+          (eb) => eb.fn.avg<number>('w.completion_rate').as('avg_completion_rate'),
+          sql<Date>`now()`.as('updated_at'),
+        ])
+        .where('p.uri', 'in', unique)
+        .groupBy('p.uri'),
+    )
+    .onConflict((oc) =>
+      oc.column('uri').doUpdateSet((eb) => ({
+        view_count: eb.ref('excluded.view_count'),
+        avg_completion_rate: eb.ref('excluded.avg_completion_rate'),
+        updated_at: eb.ref('excluded.updated_at'),
+      })),
+    )
+    .execute()
 }

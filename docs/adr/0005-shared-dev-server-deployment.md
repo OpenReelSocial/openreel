@@ -1,8 +1,14 @@
 # ADR-0005: Shared dev/demo server on a single host with Compose
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0007 (2026-10-22)
 - **Date:** 2026-10-05
 - **Deciders:** ZackMurry
+
+> Superseded on 2026-10-22 by [ADR-0007](0007-shared-dev-on-aws.md): the
+> shared dev/demo backend now runs on AWS at `dev.openreel.social`. The
+> Hetzner deployment described here keeps running until it is shut down, but
+> it is no longer the shared environment, and the iOS app no longer uses it by
+> default.
 
 ## Context
 

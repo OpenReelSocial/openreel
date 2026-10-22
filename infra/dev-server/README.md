@@ -1,6 +1,11 @@
-# Dev/demo server
+# Dev/demo server (Hetzner)
 
-The shared backend at **https://openreel.zackmurry.com**, deployed by
+> **Superseded.** The shared dev/demo backend is now on AWS at
+> https://dev.openreel.social (ADR-0007; see `../README.md`). This server
+> keeps running until it is shut down, and `compose.yaml` here is still used
+> by both deployments, but new work should target AWS.
+
+The former shared backend at **https://openreel.zackmurry.com**, deployed by
 `.github/workflows/deploy-dev-server.yml` (rationale in ADR-0005). It runs on
 `dvk-server` (178.104.184.37) at `/srv/openreel`, alongside other projects.
 
@@ -11,7 +16,7 @@ The shared backend at **https://openreel.zackmurry.com**, deployed by
 | `/appview/` | AppView | 4102 |
 | `/feedgen/` | feed generator | 4103 |
 | `/media/` | HLS renditions (media-cdn) | 4106 |
-| — | admin status page | 4104 |
+| — | admin status page and debug portal (`/debug`) | 4104 |
 | — | event-consumer | 4105 |
 | — | media worker status (`/status`) | 4107 |
 
@@ -19,6 +24,10 @@ Postgres, Redis, the PLC database, and Jetstream are only on the Compose
 network.
 
 ## Deploying
+
+`compose.yaml` here is shared with the AWS host (ADR-0007,
+`../README.md`); the two differ only in `.env` (`IMAGE_PREFIX`,
+`MEDIA_PUBLIC_URL`, `MEDIA_STORE`), whose defaults keep this server as it was.
 
 When CI passes on `main`, the workflow builds every image, pushes it to GHCR
 tagged with the commit SHA, then over SSH:
@@ -47,7 +56,7 @@ Admin page and event stream, through an SSH tunnel:
 
 ```sh
 ssh -L 4104:127.0.0.1:4104 -L 4105:127.0.0.1:4105 dvk-server
-# http://localhost:4104 and http://localhost:4105/events
+# http://localhost:4104, http://localhost:4104/debug, and http://localhost:4105/events
 ```
 
 Sign-up needs an invite (`PDS_INVITE_REQUIRED=true`). To make one, run on the

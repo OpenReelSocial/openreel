@@ -22,7 +22,11 @@ struct ContentView: View {
         }
         .tint(MonoTheme.primary)
         .preferredColorScheme(.dark)
-        .task { await auth.restore() }
+        .task {
+            let recorder = WatchEventRecorder(auth: auth)
+            playback.onWatchFinished = { recorder.record($0) }
+            await auth.restore()
+        }
     }
 
     private var tabs: some View {

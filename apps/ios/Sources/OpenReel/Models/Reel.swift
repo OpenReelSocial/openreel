@@ -5,6 +5,8 @@ import OpenReelATProto
 struct Reel: Identifiable, Hashable {
     /// The post's AT-URI.
     let id: String
+    /// CID of the post version shown, for references such as watch events.
+    let cid: String
     let authorHandle: String
     let caption: String
     let tags: [String]
@@ -13,6 +15,8 @@ struct Reel: Identifiable, Hashable {
     let posterURL: URL?
     /// Width over height, when the AppView knows it.
     let aspectRatio: Double?
+    /// Length of the video, as transcoded if known, else as the author claimed.
+    let durationMs: Int?
     let accessibilityLabel: String?
     /// Moderation labels to show on the reel. The AppView does not return
     /// labels yet, so this is always empty for real posts.
@@ -20,6 +24,7 @@ struct Reel: Identifiable, Hashable {
 
     init(post: VideoPostView) {
         id = post.uri
+        cid = post.cid
         // The AppView reports the handle the DID document claims; fall back to
         // the DID for accounts without one.
         authorHandle = post.author.handle.map { "@\($0)" } ?? post.author.did
@@ -28,6 +33,7 @@ struct Reel: Identifiable, Hashable {
         videoURL = post.playlist
         posterURL = post.thumbnail
         aspectRatio = post.aspectRatio?.value
+        durationMs = post.durationMs ?? post.record?.durationMs
         accessibilityLabel = post.record?.alt
     }
 

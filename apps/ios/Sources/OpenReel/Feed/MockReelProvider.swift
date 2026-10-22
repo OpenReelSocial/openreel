@@ -4,10 +4,22 @@ import OpenReelATProto
 /// Canned feed page for SwiftUI previews, which cannot reach the AppView.
 /// Streams are Apple's public HLS example assets, not OpenReel content.
 enum MockReelProvider {
-    /// Placeholder feed tabs until feed generators exist; every tab shows the
-    /// same reels for now.
-    static let feedNames = ["Following", "For You", "Cooking", "Local"]
-    static let defaultFeed = "For You"
+    /// The feeds the default `services/feedgen/feeds.json` serves.
+    static let feeds = [
+        FeedGeneratorView(
+            uri: "at://openreel.social/social.openreel.feed.generator/recent",
+            displayName: "Latest",
+            description: "Every video on OpenReel, newest first. Nothing is ranked or filtered by engagement.",
+            rankingCriteria: "chronological"
+        ),
+        FeedGeneratorView(
+            uri: "at://openreel.social/social.openreel.feed.generator/most-viewed",
+            displayName: "Most viewed",
+            description: "Videos with the most views first. A view is a watch event a viewer chose to publish from their own account.",
+            rankingCriteria: "heuristic",
+            weights: [RankingWeight(signal: "views", weightBps: 10_000)]
+        ),
+    ]
 
     static let page = VideoFeedPage(feed: [
         post(

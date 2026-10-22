@@ -1,0 +1,182 @@
+# Continuous deployment to the AWS dev/demo host (ADR-0007).
+#
+# After CI passes on main, build every backend image and push it to ECR tagged
+# with the commit SHA, then run infra/aws/scripts/deploy.sh on the host through
+# SSM Run Command: render .env from Parameter Store, pull, migrate, restart,
+# and wait for health. Running it by hand (workflow_dispatch) deploys the
+# chosen branch without waiting for CI and without moving the :latest tag.
+#
+# No stored AWS credentials: every job assumes the deploy role through GitHub
+# OIDC. Its trust policy (infra/lib/deploy-access.ts) accepts jobs in the
+# aws-dev environment, which both jobs use. Repository variables, from the
+# OpenReel-Dev stack outputs (infra/README.md):
+#   AWS_DEPLOY_ROLE_ARN  DeployRoleArn; the workflow does nothing until it is set
+#   AWS_INSTANCE_ID      InstanceId
+# Optional:
+#   MEDIA_STORE          's3' once the media worker supports it (default fs)
+#   AWS_MEDIA_BUCKET     MediaBucket, used when MEDIA_STORE is s3
+#   MEDIA_PUBLIC_URL     https://media.dev.openreel.social when MEDIA_STORE is s3
+#   ACME_EMAIL           Let's Encrypt expiry notices
+name: Deploy AWS dev
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Never cancel a deploy midway (it may be migrating); queue the next one.
+concurrency:
+  group: deploy-aws-dev
+  cancel-in-progress: false
+
+env:
+  # workflow_run fires on the default branch, so pin the commit CI tested.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  AWS_REGION: us-east-1
+  # ECR repositories are openreel-dev-<image> (infra/lib/dev-stack.ts).
+  REPOSITORY_PREFIX: openreel-dev
+  PUBLIC_URL: https://dev.openreel.social
+
+jobs:
+  build:
+    if: >-
+      vars.AWS_DEPLOY_ROLE_ARN != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: aws-dev
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        # Same images as deploy-dev-server.yml and serviceImages in
+        # infra/lib/dev-stack.ts; keep the three in step.
+        include:
+          - name: appview
+            dockerfile: services/appview/Dockerfile
+          - name: feedgen
+            dockerfile: services/feedgen/Dockerfile
+          - name: admin
+            dockerfile: services/admin/Dockerfile
+          - name: event-consumer
+            dockerfile: services/event-consumer/Dockerfile
+          - name: media
+            dockerfile: services/media/Dockerfile
+          - name: db-migrate
+            dockerfile: packages/db/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.REPOSITORY_PREFIX }}-${{ matrix.name }}:${{ env.SHA }}
+            ${{ github.event_name == 'workflow_run' && format('{0}/{1}-{2}:latest', steps.ecr.outputs.registry, env.REPOSITORY_PREFIX, matrix.name) || '' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=aws-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=aws-${{ matrix.name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: aws-dev
+      url: ${{ env.PUBLIC_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # The host downloads deploy.sh from this commit and runs it as root. All
+      # settings are non-secret; secrets stay in Parameter Store.
+      - name: Run deploy.sh on the host
+        env:
+          INSTANCE_ID: ${{ vars.AWS_INSTANCE_ID }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          MEDIA_STORE: ${{ vars.MEDIA_STORE || 'fs' }}
+          MEDIA_S3_BUCKET: ${{ vars.AWS_MEDIA_BUCKET }}
+          MEDIA_PUBLIC_URL: ${{ vars.MEDIA_PUBLIC_URL }}
+          ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+        run: |
+          raw="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${SHA}"
+          script="install -d -m 700 /srv/openreel && curl -fsSL --retry 3 '$raw/infra/aws/scripts/deploy.sh' -o /srv/openreel/deploy.sh && env \
+            OPENREEL_SHA='$SHA' OPENREEL_REPO='$GITHUB_REPOSITORY' \
+            REGISTRY='$REGISTRY' IMAGE_PREFIX='$REGISTRY/$REPOSITORY_PREFIX' \
+            AWS_REGION='$AWS_REGION' PARAMETER_PATH=/openreel/dev \
+            PDS_HOSTNAME=dev.openreel.social PDS_SERVICE_HANDLE_DOMAINS=.dev.openreel.social \
+            MEDIA_STORE='$MEDIA_STORE' MEDIA_S3_BUCKET='$MEDIA_S3_BUCKET' \
+            MEDIA_PUBLIC_URL='$MEDIA_PUBLIC_URL' ACME_EMAIL='$ACME_EMAIL' \
+            bash /srv/openreel/deploy.sh"
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${SHA:0:12}" \
+            --parameters "$(jq -n --arg c "$script" '{commands: [$c], executionTimeout: ["1500"]}')" \
+            --query Command.CommandId --output text)
+          echo "SSM command $command_id"
+
+          status=Pending
+          for _ in $(seq 1 150); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+
+          # SSM keeps the last 24,000 characters of each stream.
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2
+          [[ "$status" == Success ]] || { echo "::error::deploy on the host ended with $status"; exit 1; }
+
+      - name: Smoke test public endpoints
+        env:
+          MEDIA_PUBLIC_URL: ${{ vars.MEDIA_PUBLIC_URL }}
+        run: |
+          check() {
+            for _ in $(seq 1 10); do
+              curl -fsS -o /dev/null "$1" && echo "up: $1" && return 0
+              sleep 3
+            done
+            echo "::error::not reachable: $1"; return 1
+          }
+          check "$PUBLIC_URL/xrpc/_health"
+          check "$PUBLIC_URL/.well-known/oauth-protected-resource"
+          check "$PUBLIC_URL/oauth/ios-client-metadata.json"
+          check "$PUBLIC_URL/plc/_health"
+          check "$PUBLIC_URL/appview/health"
+          check "$PUBLIC_URL/feedgen/health"
+          # With MEDIA_STORE=fs the host serves media; with S3, CloudFront does,
+          # and feed playlists are checked end to end by 'make smoke' instead.
+          [[ -n "$MEDIA_PUBLIC_URL" ]] || check "$PUBLIC_URL/media/health"
+          check "$PUBLIC_URL/appview/xrpc/social.openreel.feed.getFeed"
+          # Confirm the running services report this commit.
+          curl -fsS "$PUBLIC_URL/appview/health" | grep -q "$SHA" \
+            || { echo "::error::appview is not running $SHA"; exit 1; }

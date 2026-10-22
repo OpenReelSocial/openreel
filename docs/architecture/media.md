@@ -24,9 +24,10 @@ iOS ──HLS──▶ media-cdn (nginx) ◀────────────
 | media | `GET /status` | Job counts by status |
 | media-cdn | `/<did>/<cid>/playlist.m3u8`, `/<did>/<cid>/poster.jpg` | Static files |
 
-On the dev server the AppView is at `https://openreel.zackmurry.com/appview/`
-and media at `https://openreel.zackmurry.com/media/`. Locally they are
-`http://localhost:3001` and `http://localhost:3006`.
+On AWS (ADR-0007) the AppView is at `https://dev.openreel.social/appview/`,
+and media is served by CloudFront at `https://media.dev.openreel.social/` from
+S3 (`MEDIA_STORE=s3`). Locally they are `http://localhost:3001` and
+`http://localhost:3006`, with media on disk behind the media-cdn container.
 
 ## Media layout
 
@@ -39,6 +40,33 @@ and media at `https://openreel.zackmurry.com/media/`. Locally they are
 ```
 
 Renditions above the source resolution are skipped. Segments are 4 s fMP4.
+
+## Storage
+
+The worker builds renditions in a scratch directory, then hands it to a
+`MediaStore` chosen by `MEDIA_STORE`:
+
+| `MEDIA_STORE` | Where renditions go | Served by | Used by |
+|---|---|---|---|
+| `fs` (default) | `MEDIA_ROOT/<did>/<cid>/` (default `/media`), swapped in with a rename | nginx `media-cdn` | Local Compose |
+| `s3` | `s3://$MEDIA_S3_BUCKET/<did>/<cid>/` | CloudFront at `media.dev.openreel.social` | AWS dev host (ADR-0007) |
+
+The S3 store uses the AWS SDK's default region and credential chain
+(`AWS_REGION`, the EC2 instance role). Keys use the raw DID (`did:plc:...`):
+the AppView percent-encodes the DID in playlist URLs and S3 decodes the path
+before lookup. Every object gets `Cache-Control: public, max-age=31536000,
+immutable` and a content type from its extension (an unknown extension fails
+the job). The top-level `playlist.m3u8` is uploaded last, so a reader never
+finds a playlist whose segments are missing. Re-publishing a key overwrites
+objects in place; files from an older rendition set that the new one lacks
+are left behind, unreferenced.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MEDIA_STORE` | `fs` | `fs` or `s3` |
+| `MEDIA_ROOT` | `/media` | `fs` only |
+| `MEDIA_S3_BUCKET` | — | Required when `MEDIA_STORE=s3` |
+| `MEDIA_PUBLIC_URL` | — | AppView setting: base URL clients stream from, e.g. `https://media.dev.openreel.social` |
 
 ## Job states
 
