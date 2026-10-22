@@ -32,6 +32,15 @@ disposable local account, writes its `app.bsky.actor.profile` record to the PDS,
 then waits until the same record appears at the consumer's loopback-only API on
 port 3004. No local identity is published to the public PLC directory.
 
+## Shared dev environment
+
+The shared dev/demo backend runs on AWS at **https://dev.openreel.social**
+(ADR-0007), with media on CloudFront at https://media.dev.openreel.social. A
+merge to `main` deploys it once CI passes (`.github/workflows/deploy-aws.yml`);
+the infrastructure is the CDK app in `infra/`. The iOS app uses it by default.
+[infra/README.md](infra/README.md) covers deploying, operating, accounts, and
+monitoring.
+
 ## Checking a deployment
 
 `make smoke` and `make e2e-upload` test a running stack from outside, the way a

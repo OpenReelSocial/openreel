@@ -16,7 +16,9 @@ open OpenReel.xcodeproj
 Run from Xcode (`Cmd+R`) with an iOS Simulator destination selected.
 
 Regenerate the project any time `project.yml` or the file layout under
-`Sources/` changes.
+`Sources/` changes. `project.yml` defines the shared `OpenReel` scheme, so
+regenerating also resets edits to it, such as an `OPENREEL_BACKEND`
+environment variable.
 
 ## Layout
 
@@ -25,7 +27,7 @@ Regenerate the project any time `project.yml` or the file layout under
 | `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), and the sign-in / account UI under `Auth/` |
 | `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, and the AppView `getFeed` client. No UI. See ADR-0004 |
 | `OAuth/ios-client-metadata.json` | The OAuth client-metadata document; must be hosted at `https://openreel.social/oauth/ios-client-metadata.json` for release builds |
-| `Supporting/Info.plist` | URL schemes for the OAuth redirects (release, dev server, AWS) and the local-networking ATS exception |
+| `Supporting/Info.plist` | URL schemes for the OAuth redirects (release, AWS, Hetzner dev server) and the local-networking ATS exception |
 
 ## Signing in
 
@@ -38,37 +40,34 @@ even when the server is down.
 ### Debug builds
 
 Debug builds sign in against the backend chosen in
-`Sources/OpenReel/Backend.swift`. Against the dev server they are a native
-client whose metadata the dev server's nginx hosts at
-`https://openreel.zackmurry.com/oauth/ios-client-metadata.json`, redirecting to
-`com.zackmurry.openreel:/oauth/callback`. Against the local stack they use the
-spec's loopback development client.
+`Sources/OpenReel/Backend.swift`. Against a deployed backend they are a native
+client whose metadata that server's nginx hosts; against the local stack they
+use the spec's loopback development client. Choose with `OPENREEL_BACKEND`
+under Product → Scheme → Edit Scheme → Run → Arguments → Environment
+Variables. The variable only applies to launches from Xcode; opened from the
+home screen, the app uses the default.
 
-- **Dev server (default):** the shared server from ADR-0005 at
-  `openreel.zackmurry.com` — PDS, private PLC (`/plc`), AppView
-  (`/appview`), and media (`/media`). Its PDS requires an invite code, so
-  create the account with the PDS admin password. The simplest way is to let
-  the seed script make one; it prints the handle and password:
+- **AWS (default):** the shared dev/demo backend from ADR-0007 at
+  `dev.openreel.social` — PDS, private PLC (`/plc`), AppView (`/appview`),
+  and media on CloudFront (`media.dev.openreel.social`). The client metadata
+  is at `https://dev.openreel.social/oauth/ios-client-metadata.json`,
+  redirecting to `social.openreel.dev:/oauth/callback`. The PDS requires an
+  invite and handles end in `.dev.openreel.social`; `infra/README.md` shows
+  how to make an invite, and the seed script can make an account for you
+  (it prints the handle and password):
 
   ```bash
-  PDS_URL=https://openreel.zackmurry.com \
-  APPVIEW_URL=https://openreel.zackmurry.com/appview \
-  HANDLE_DOMAIN=.openreel.zackmurry.com PDS_ADMIN_PASSWORD=... make seed-videos
+  PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-videos
   ```
 
   Works on a device as well as the Simulator.
-- **AWS host:** set `OPENREEL_BACKEND=aws` under Product → Scheme → Edit
-  Scheme → Run → Arguments → Environment Variables. The AWS dev/demo host
-  from ADR-0007 at `dev.openreel.social` has the same layout as the dev
-  server; its nginx hosts the client metadata at
-  `https://dev.openreel.social/oauth/ios-client-metadata.json`, redirecting
-  to `social.openreel.dev:/oauth/callback`. Its PDS also requires an invite
-  (`infra/README.md`), and handles end in `.dev.openreel.social`. Works on a
-  device, but the variable only applies to launches from Xcode: opened from
-  the home screen, the app falls back to the default backend.
-- **Local stack:** set `OPENREEL_BACKEND=local` the same way. Simulator only:
-  a device cannot reach your Mac's `localhost`, and plain-http servers are
-  only accepted for loopback hosts.
+- **Hetzner dev server (`OPENREEL_BACKEND=dev-server`):** the earlier shared
+  server from ADR-0005 at `openreel.zackmurry.com`, superseded by ADR-0007
+  and kept only until it is shut down. Same layout, media under `/media`,
+  client metadata hosted there, redirect `com.zackmurry.openreel:/oauth/callback`.
+- **Local stack (`OPENREEL_BACKEND=local`):** Simulator only: a device cannot
+  reach your Mac's `localhost`, and plain-http servers are only accepted for
+  loopback hosts.
 
 For the local stack:
 
@@ -103,12 +102,13 @@ that URL. Keep the hosted copy identical to the committed file.
 After sign-in the app shows `social.openreel.feed.getFeed` from the backend's
 AppView (ADR-0006, `docs/architecture/media.md`): a page-snapped vertical feed
 of HLS videos, paged by cursor as you scroll, with pull-to-refresh and tap to
-pause. The feed is unauthenticated and comes from the dev server in Release
+pause. The feed is unauthenticated and comes from the AWS backend in Release
 builds and by default in Debug builds.
 
 The feed is empty until something is posted. `make seed-videos` posts
-generated clips and waits until they are playable — against the dev server
-with the variables above, or against `make up` with no variables.
+generated clips and waits until they are playable — against AWS with the
+variables above, or against `make up` with no variables. `make e2e-upload`
+posts one clip and times each stage to playback.
 
 Playback follows the directional preloading in the project plan (§5.7.5):
 `FeedPlaybackController` keeps an `AVPlayer` with an item attached for the

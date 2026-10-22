@@ -1,6 +1,11 @@
-# Dev/demo server
+# Dev/demo server (Hetzner)
 
-The shared backend at **https://openreel.zackmurry.com**, deployed by
+> **Superseded.** The shared dev/demo backend is now on AWS at
+> https://dev.openreel.social (ADR-0007; see `../README.md`). This server
+> keeps running until it is shut down, and `compose.yaml` here is still used
+> by both deployments, but new work should target AWS.
+
+The former shared backend at **https://openreel.zackmurry.com**, deployed by
 `.github/workflows/deploy-dev-server.yml` (rationale in ADR-0005). It runs on
 `dvk-server` (178.104.184.37) at `/srv/openreel`, alongside other projects.
 

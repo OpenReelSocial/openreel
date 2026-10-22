@@ -8,8 +8,9 @@ differ, this file wins for this subtree.
 - **The AWS CDK v2 app** (`bin/`, `lib/`, `test/`, `cdk.json`), which defines
   the shared dev environment on AWS (ADR-0007).
 - **Configuration for operated components and hosts**: `pds/` (upstream PDS,
-  PLC, Jetstream for local development) and `dev-server/` (the Hetzner
-  deployment, ADR-0005).
+  PLC, Jetstream for local development), `dev-server/` (the Hetzner
+  deployment, ADR-0005, superseded by ADR-0007; its `compose.yaml` is also the
+  AWS host's), and `aws/` (the AWS host's deploy script and nginx sites).
 
 ## Rules
 

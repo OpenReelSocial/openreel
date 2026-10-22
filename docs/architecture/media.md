@@ -24,9 +24,10 @@ iOS ──HLS──▶ media-cdn (nginx) ◀────────────
 | media | `GET /status` | Job counts by status |
 | media-cdn | `/<did>/<cid>/playlist.m3u8`, `/<did>/<cid>/poster.jpg` | Static files |
 
-On the dev server the AppView is at `https://openreel.zackmurry.com/appview/`
-and media at `https://openreel.zackmurry.com/media/`. Locally they are
-`http://localhost:3001` and `http://localhost:3006`.
+On AWS (ADR-0007) the AppView is at `https://dev.openreel.social/appview/`,
+and media is served by CloudFront at `https://media.dev.openreel.social/` from
+S3 (`MEDIA_STORE=s3`). Locally they are `http://localhost:3001` and
+`http://localhost:3006`, with media on disk behind the media-cdn container.
 
 ## Media layout
 
