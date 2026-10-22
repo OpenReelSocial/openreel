@@ -6,5 +6,9 @@ import { addStacks } from '../lib/app.ts'
 import { devConfig } from '../lib/config.ts'
 
 const app = new App()
-addStacks(app, devConfig)
+const alertEmail: unknown = app.node.tryGetContext('alertEmail')
+addStacks(app, {
+  ...devConfig,
+  alertEmail: typeof alertEmail === 'string' && alertEmail !== '' ? alertEmail : undefined,
+})
 app.synth()
