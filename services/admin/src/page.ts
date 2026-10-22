@@ -129,7 +129,7 @@ ${rows}
     </ul>
     <footer>
       Checked ${escapeHtml(report.checkedAt)} &middot; refreshes every ${refreshSeconds}s &middot;
-      <a href="/api/status">JSON</a>
+      <a href="/api/status">JSON</a> &middot; <a href="/debug">Live pipeline</a>
     </footer>
   </main>
 </body>

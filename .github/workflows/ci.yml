@@ -60,3 +60,7 @@ jobs:
 
       - name: Test
         run: make test
+
+      # No AWS credentials: the app synthesizes account-agnostic (ADR-0007).
+      - name: CDK synth
+        run: make infra-synth

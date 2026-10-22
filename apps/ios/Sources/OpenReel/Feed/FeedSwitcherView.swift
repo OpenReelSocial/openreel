@@ -1,27 +1,36 @@
+import OpenReelATProto
 import SwiftUI
 
-/// Feed tabs drawn over the top of the video as a wheel: the selected feed
-/// sits in the center, dragging sideways selects whichever feed snaps to the
-/// center (with a tick as each one passes), and tapping a feed brings it
-/// there. Feeds shrink and fade with distance from the center. A button on
-/// the right manages which feeds appear here.
+/// Feed tabs drawn over the top of the video as a wheel, plus a button that
+/// shows how each feed ranks.
+///
+/// The selected feed sits in the center. Dragging sideways brings each feed
+/// to the center with a tick, and the one the wheel comes to rest on is
+/// selected; tapping a feed brings it there. Feeds shrink and fade with
+/// distance from the center.
 struct FeedSwitcherView: View {
-    let feeds: [String]
-    @Binding var selection: String
+    let feeds: [FeedGeneratorView]
+    /// URI of the selected feed.
+    let selection: String?
+    var onSelect: (FeedGeneratorView) -> Void
     var onChooseFeeds: () -> Void = {}
 
-    /// The feed scrolled to the center; drives and follows `selection`.
-    @State private var centeredFeed: String?
+    /// URI of the feed scrolled to the center. Follows `selection`, and
+    /// selects once the wheel rests.
+    @State private var centeredURI: String?
 
     /// Every feed gets the same width so the snap lands each one centered.
-    nonisolated private static let itemWidth: CGFloat = 96
+    nonisolated private static let itemWidth: CGFloat = 112
     private static let height: CGFloat = 44
+    /// Selecting reloads the feed, so wait for the wheel to stop rather than
+    /// loading every feed it passes.
+    private static let settleDelay: Duration = .milliseconds(350)
 
     var body: some View {
         GeometryReader { geometry in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                    ForEach(feeds, id: \.self) { feed in
+                    ForEach(feeds) { feed in
                         feedTab(feed)
                     }
                 }
@@ -30,7 +39,7 @@ struct FeedSwitcherView: View {
             // Lets the first and last feeds reach the center.
             .contentMargins(.horizontal, max(0, (geometry.size.width - Self.itemWidth) / 2), for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
-            .scrollPosition(id: $centeredFeed, anchor: .center)
+            .scrollPosition(id: $centeredURI, anchor: .center)
             .mask(edgeFade)
         }
         .frame(height: Self.height)
@@ -44,25 +53,32 @@ struct FeedSwitcherView: View {
             .accessibilityLabel("Choose feeds")
             .padding(.trailing, 8)
         }
-        .onAppear { centeredFeed = selection }
-        .onChange(of: centeredFeed) { _, feed in
-            if let feed, feed != selection { selection = feed }
-        }
-        .onChange(of: selection) { _, feed in
-            if feed != centeredFeed {
-                withAnimation(.snappy) { centeredFeed = feed }
+        .onAppear { centeredURI = selection }
+        .onChange(of: selection) { _, uri in
+            if uri != centeredURI {
+                withAnimation(.snappy) { centeredURI = uri }
             }
         }
-        .sensoryFeedback(.selection, trigger: selection)
+        .task(id: centeredURI) {
+            guard let centeredURI, centeredURI != selection,
+                  let feed = feeds.first(where: { $0.uri == centeredURI })
+            else { return }
+            try? await Task.sleep(for: Self.settleDelay)
+            guard !Task.isCancelled else { return }
+            onSelect(feed)
+        }
+        // Not for the first centering when the tabs appear.
+        .sensoryFeedback(.selection, trigger: centeredURI) { old, new in old != nil && new != nil }
     }
 
-    private func feedTab(_ feed: String) -> some View {
-        let isSelected = feed == selection
+    private func feedTab(_ feed: FeedGeneratorView) -> some View {
+        // The centered feed reads as selected while the wheel moves.
+        let isSelected = feed.uri == (centeredURI ?? selection)
         return Button {
-            withAnimation(.snappy) { selection = feed }
+            withAnimation(.snappy) { centeredURI = feed.uri }
         } label: {
             VStack(spacing: 4) {
-                Text(feed)
+                Text(feed.displayName)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
                     .foregroundStyle(isSelected ? MonoTheme.primary : MonoTheme.inactiveOverlay)

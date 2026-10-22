@@ -129,7 +129,7 @@ update or create focused current documentation
 implement
 ```
 
-For example, when work reaches media infrastructure, contributors may consult the original project plan's S3/CDN/HLS sections. If the reference document contains conflicting Cloudflare and CloudFront assumptions, the team should resolve the actual design rather than silently adopting whichever statement the contributor encountered first.
+For example, when work reaches media infrastructure, contributors may consult the original project plan's S3/CDN/HLS sections. If the reference document contains conflicting Cloudflare and CloudFront assumptions, the team should resolve the actual design rather than silently adopting whichever statement the contributor encountered first. (That one has since been resolved: ADR-0007 chose CloudFront for the shared dev environment.)
 
 The resulting decision should then be reflected in an ADR and/or current architecture documentation.
 

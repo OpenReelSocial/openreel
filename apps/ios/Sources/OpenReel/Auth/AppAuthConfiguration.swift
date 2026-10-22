@@ -2,25 +2,37 @@ import Foundation
 import OpenReelATProto
 
 /// Where this build signs in. Debug builds sign in against `Backend.current`:
-/// on the dev server as a native client whose metadata that server hosts, on
-/// the local Compose stack (`OPENREEL_BACKEND=local`) as the spec's loopback
-/// client. Release builds are the published native client whose metadata
+/// on a deployed backend (AWS by default, or the Hetzner dev server) as a
+/// native client whose metadata that server hosts, on the local Compose stack
+/// (`OPENREEL_BACKEND=local`) as the spec's loopback client. Release builds are the published native client whose metadata
 /// lives at `clientID`.
 enum AppAuthConfiguration {
     #if DEBUG
-    /// The dev server's nginx serves the metadata document
-    /// (`infra/dev-server/nginx/openreel.zackmurry.com`). The loopback client
-    /// is not used there: in the Simulator, sign-in hung after the server's
-    /// redirect to `http://127.0.0.1`, while a custom-scheme redirect is
-    /// handed back by `ASWebAuthenticationSession` itself.
-    static let client: OAuthClientConfiguration = Backend.current.isLocal
-        ? .loopback(redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!)
-        : OAuthClientConfiguration(
-            clientID: "https://openreel.zackmurry.com/oauth/ios-client-metadata.json",
-            redirectURI: "com.zackmurry.openreel:/oauth/callback"
-        )
+    /// Deployed backends' nginx serves the metadata document
+    /// (`infra/aws/nginx/openreel.conf`,
+    /// `infra/dev-server/nginx/openreel.zackmurry.com`), and each redirect
+    /// scheme is that host reversed. The loopback client is not used there: in the
+    /// Simulator, sign-in hung after the server's redirect to
+    /// `http://127.0.0.1`, while a custom-scheme redirect is handed back by
+    /// `ASWebAuthenticationSession` itself.
+    static let client: OAuthClientConfiguration = {
+        switch Backend.current {
+        case .localStack:
+            return .loopback(redirectURI: URL(string: "http://127.0.0.1/oauth/callback")!)
+        case .devServer:
+            return OAuthClientConfiguration(
+                clientID: "https://openreel.zackmurry.com/oauth/ios-client-metadata.json",
+                redirectURI: "com.zackmurry.openreel:/oauth/callback"
+            )
+        case .aws:
+            return OAuthClientConfiguration(
+                clientID: "https://dev.openreel.social/oauth/ios-client-metadata.json",
+                redirectURI: "social.openreel.dev:/oauth/callback"
+            )
+        }
+    }()
 
-    /// Both deployments run a private PLC directory, so DIDs resolve there
+    /// Every deployment runs a private PLC directory, so DIDs resolve there
     /// rather than at plc.directory; handles resolve through the PDS.
     static let identity = IdentityResolverConfiguration(
         plcDirectoryURL: Backend.current.plcURL,
@@ -28,9 +40,13 @@ enum AppAuthConfiguration {
         allowInsecureLocalhost: Backend.current.isLocal
     )
 
-    static let signInPlaceholder = Backend.current.isLocal
-        ? "alice.pds.example.com or localhost:3000"
-        : "you.openreel.zackmurry.com"
+    static let signInPlaceholder: String = {
+        switch Backend.current {
+        case .localStack: return "alice.pds.example.com or localhost:3000"
+        case .devServer: return "you.openreel.zackmurry.com"
+        case .aws: return "you.dev.openreel.social"
+        }
+    }()
     #else
     /// The `client_id` is the URL of `apps/ios/OAuth/ios-client-metadata.json`
     /// as hosted on the project domain (ADR-0001); the redirect scheme is

@@ -12,6 +12,7 @@ struct AccountView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSigningOut = false
+    @AppStorage(WatchEventRecorder.sharingKey) private var sharesWatchHistory = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,14 @@ struct AccountView: View {
                     if let expiresAt = session.expiresAt {
                         LabeledContent("Token renews", value: expiresAt, format: .relative(presentation: .named))
                     }
+                }
+
+                Section {
+                    Toggle("Share Watch History", isOn: $sharesWatchHistory)
+                } header: {
+                    Text("Engagement")
+                } footer: {
+                    Text("Publishes a watch event to your PDS for each video you watch for at least \(WatchEventRecorder.minimumWatchMs / 1000) seconds. Anyone can read them. Feeds such as Most viewed count them as views.")
                 }
 
                 Section {

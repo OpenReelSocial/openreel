@@ -19,6 +19,11 @@ targets:
       - path: Sources/OpenReel
     dependencies:
       - package: OpenReelATProto
+    # Generate the shared scheme so 'xcodegen generate' and command-line
+    # builds always have one. Choose a backend under Edit Scheme → Run →
+    # Environment Variables (OPENREEL_BACKEND, see README); regenerating
+    # resets those edits.
+    scheme: {}
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: social.openreel.ios

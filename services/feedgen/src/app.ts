@@ -1,10 +1,11 @@
 import type { Database } from '@openreel/db'
-import { ids, lexicons } from '@openreel/lexicons'
+import { ids, lexicons, type SocialOpenreelFeedDefs } from '@openreel/lexicons'
 import { createServiceApp } from '@openreel/service-core'
 import type { Express, Request, Response } from 'express'
 import type { Kysely } from 'kysely'
 
-import { FEEDS, InvalidCursorError, type Feed } from './feeds.ts'
+import type { FeedDefinition } from './config.ts'
+import { buildFeeds, InvalidCursorError, type Feed } from './feeds.ts'
 
 export const SERVICE_NAME = 'feedgen'
 export const DEFAULT_PORT = 3002
@@ -13,7 +14,13 @@ const GENERATOR_COLLECTION = 'social.openreel.feed.generator'
 
 export interface FeedgenDeps {
   db: Kysely<Database>
-  feeds?: Record<string, Feed>
+  /** The feeds file's contents; see `loadFeeds`. */
+  feeds: FeedDefinition[]
+  /**
+   * Authority of the feed URIs this generator advertises. Must match the
+   * AppView's DEFAULT_FEED_URI so its default feed is one listed here.
+   */
+  publisher: string
 }
 
 function xrpcError(res: Response, status: number, error: string, message: string): void {
@@ -31,10 +38,40 @@ function feedFor(feeds: Record<string, Feed>, feedUri: string): Feed | undefined
   return Object.hasOwn(feeds, rkey) ? feeds[rkey] : undefined
 }
 
+/** What clients are shown about a feed: its URI, method, and weights in basis points. */
+export function generatorView(
+  def: FeedDefinition,
+  publisher: string,
+): SocialOpenreelFeedDefs.GeneratorView {
+  return {
+    uri: `at://${publisher}/${GENERATOR_COLLECTION}/${def.id}`,
+    displayName: def.displayName,
+    ...(def.description === undefined ? {} : { description: def.description }),
+    rankingCriteria: def.rankingCriteria,
+    ...(def.ranking.type === 'weighted'
+      ? {
+          weights: def.ranking.weights.map((w) => ({
+            signal: w.signal,
+            weightBps: Math.round(w.weight * 10_000),
+            ...(w.halfLifeHours === undefined ? {} : { halfLifeHours: w.halfLifeHours }),
+          })),
+        }
+      : {}),
+  }
+}
+
 /** Builds the feed generator: ranked post URIs only; the AppView hydrates them. */
 export function createApp(deps: FeedgenDeps): Express {
   const app = createServiceApp(SERVICE_NAME)
-  const feeds = deps.feeds ?? FEEDS
+  const feeds = buildFeeds(deps.feeds)
+  const views = deps.feeds.map((def) => generatorView(def, deps.publisher))
+
+  app.get(
+    `/xrpc/${ids.SocialOpenreelFeedDescribeFeedGenerator}`,
+    (_req: Request, res: Response) => {
+      res.status(200).json({ feeds: views })
+    },
+  )
 
   app.get(`/xrpc/${ids.SocialOpenreelFeedGetFeedSkeleton}`, async (req: Request, res: Response) => {
     const raw: Record<string, unknown> = {}

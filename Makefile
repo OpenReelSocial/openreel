@@ -128,11 +128,30 @@ demo-pds-event: ## Create a sample PDS profile and show it at the backend consum
 seed-videos: ## Upload demo videos to the PDS and wait until they play in the feed
 	node scripts/seed-videos.mjs
 
+.PHONY: smoke
+smoke: ## Check a running deployment end to end from outside (PUBLIC_URL, default local)
+	node scripts/smoke.mjs
+
+.PHONY: e2e-upload
+e2e-upload: ## Post one clip and time it through indexing, transcoding, and playback
+	node scripts/e2e-upload.mjs
+
 .PHONY: down
 # --remove-orphans also removes the PDS, which is defined in infra/pds and so is
 # an orphan relative to compose.yaml alone. Without it the PDS survives.
 down: ## Stop every container in the project, keep volumes
 	docker compose down --remove-orphans
+
+# AWS CDK app (infra/, ADR-0007). Synth needs no credentials; diff reads the
+# deployed stacks, so it uses the AWS profile in the environment (AWS_PROFILE).
+# Deploying is a human step; see infra/README.md.
+.PHONY: infra-synth
+infra-synth: ## Synthesize the AWS CDK app into infra/cdk.out (no AWS access)
+	pnpm --filter @openreel/infra run synth
+
+.PHONY: infra-diff
+infra-diff: ## Compare the AWS CDK app with what is deployed (needs AWS_PROFILE)
+	pnpm --filter @openreel/infra run diff
 
 # Database migrations (packages/db, ADR-0003). Migrations are an explicit step,
 # not run at service or container start. DATABASE_URL is taken from the
@@ -161,4 +180,4 @@ db-build:
 
 .PHONY: clean
 clean: ## Remove build output and caches
-	rm -rf .turbo services/*/dist services/*/.turbo
+	rm -rf .turbo services/*/dist services/*/.turbo infra/cdk.out

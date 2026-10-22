@@ -296,8 +296,8 @@ private struct ProfileVideoCell: View {
                 }
             }
             .overlay(alignment: .bottomLeading) {
-                if let duration = reel.duration {
-                    Label(ReelScrubber.timestamp(duration), systemImage: "play.fill")
+                if let durationMs = reel.durationMs {
+                    Label(ReelScrubber.timestamp(TimeInterval(durationMs) / 1000), systemImage: "play.fill")
                         .font(.caption2.weight(.semibold).monospacedDigit())
                         .foregroundStyle(MonoTheme.primary)
                         .shadow(color: MonoTheme.scrim.opacity(0.7), radius: 2)
