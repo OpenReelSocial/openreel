@@ -181,8 +181,7 @@ AppView health alarms are in `ALARM`. That is expected.
 # Shell on the host (no SSH; needs the Session Manager plugin)
 aws ssm start-session --target <InstanceId>
 
-# The admin page, which listens only on the host's loopback. The debug portal,
-# with every SQL statement live, is http://localhost:4104/debug.
+# The admin page, which listens only on the host's loopback.
 aws ssm start-session --target <InstanceId> \
   --document-name AWS-StartPortForwardingSession \
   --parameters portNumber=4104,localPortNumber=4104
@@ -190,6 +189,11 @@ aws ssm start-session --target <InstanceId> \
 # Follow one container's logs
 aws logs tail /openreel/dev/containers --follow --log-stream-name-prefix openreel-appview
 ```
+
+**Debug portal:** https://dev.openreel.social/debug shows every SQL statement
+live, with the pipeline's state. Sign in as `admin` with the PDS admin password
+(the `/openreel/dev/PDS_ADMIN_PASSWORD` parameter). Only `/debug` is public;
+the rest of the admin service stays on loopback.
 
 The services report each query to the debug portal (`DEBUG_QUERY_TAP`, on by
 default; it costs one extra Postgres round trip per query). To turn it off,

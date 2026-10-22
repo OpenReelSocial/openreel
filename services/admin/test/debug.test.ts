@@ -42,3 +42,41 @@ describe('debug portal', () => {
     expect(received[0]).toBe('select 5')
   })
 })
+
+describe('debug portal password', () => {
+  const app = () =>
+    createApp([], {
+      db: undefined as never,
+      queries: new QueryFeed(),
+      password: 'sekret',
+    })
+  const basic = (user: string, pass: string) =>
+    `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
+
+  it('asks for credentials when a password is set', async () => {
+    const res = await request(app()).get('/debug')
+    expect(res.status).toBe(401)
+    expect(res.headers['www-authenticate']).toContain('Basic')
+  })
+
+  it('rejects a wrong password or user, on the page and the APIs', async () => {
+    for (const path of ['/debug', '/debug/api/snapshot', '/debug/api/queries']) {
+      expect(
+        (await request(app()).get(path).set('authorization', basic('admin', 'nope'))).status,
+      ).toBe(401)
+    }
+    expect(
+      (await request(app()).get('/debug').set('authorization', basic('root', 'sekret'))).status,
+    ).toBe(401)
+  })
+
+  it('serves the page to admin with the password', async () => {
+    const res = await request(app()).get('/debug').set('authorization', basic('admin', 'sekret'))
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('OpenReel live pipeline')
+  })
+
+  it('leaves the status page open', async () => {
+    expect((await request(app()).get('/health')).status).toBe(200)
+  })
+})
