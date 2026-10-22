@@ -12,7 +12,8 @@ that do not exist yet; treat the two together as the contract.
 Technology choices referenced here are recorded in
 [ADR-0002](../adr/0002-foundational-technology-stack.md); the database access
 layer and migration tooling in
-[ADR-0003](../adr/0003-database-access-and-migrations.md). Backlog task IDs
+[ADR-0003](../adr/0003-database-access-and-migrations.md); the AWS environment in
+[ADR-0007](../adr/0007-shared-dev-on-aws.md). Backlog task IDs
 refer to `docs/dev-environment-tasks.yaml`.
 
 ## What exists today
@@ -53,7 +54,12 @@ openreel/
 │   ├── event-consumer/        # Jetstream subscriber + observation API      DEV-043
 │   ├── admin/                 # internal status page, loopback-bound only
 │   └── media/                 # transcodes video blobs to HLS; cdn.conf  ADR-0006
-├── infra/
+├── infra/                     # AWS CDK v2 app (package @openreel/infra)  ADR-0007
+│   ├── bin/openreel.ts        #   CDK entrypoint (cdk.json runs it via tsx)
+│   ├── lib/                   #   config.ts, app.ts (addStacks), dev-stack.ts
+│   ├── test/                  #   aws-cdk-lib/assertions tests
+│   ├── AGENTS.md              #   scoped rules: IaC only, least privilege, humans deploy
+│   ├── README.md              #   commands and one-time AWS account setup
 │   ├── pds/                   # upstream ATProto event infrastructure
 │   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
 │   │   ├── scripts/           #   generate-secrets.sh
@@ -99,7 +105,6 @@ Each appears when the owning task is implemented.
 | `apps/ios/` | SwiftUI client; `project.yml` for XcodeGen, generated `.xcodeproj` stays uncommitted | DEV-013/014 |
 | `apps/ios/Packages/OpenReelATProto/` | Swift package for AT Protocol identity resolution, OAuth sign-in, and session handling (ADR-0004). Exists; API access for OpenReel services will build on it | OR-019/027 |
 | `apps/ios/Packages/OpenReelPlayer/` | Swift package for AVFoundation/HLS playback | — |
-| `infra/*.ts`, `infra/lib/` | AWS CDK v2 TypeScript app plus `infra/AGENTS.md`. Not started | DEV-048/049 |
 | `services/gateway/` | Client/backend gateway, **if** the boundary proves necessary | — |
 | `services/labeler/` | Moderation labeling service | — |
 | `infra/relay/` | Relay/firehose configuration, if OpenReel operates one. Upstream implementation, so it belongs beside `infra/pds/` | — |
