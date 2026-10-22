@@ -35,5 +35,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: OpenReel
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        # Portrait only on iPhone, like other short-video apps; landscape
+        # clips are letterboxed in the feed instead.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         MARKETING_VERSION: '0.1.0'
         CURRENT_PROJECT_VERSION: '1'

@@ -10,7 +10,14 @@ struct FeedView: View {
 
     @State private var visibleReelID: String?
     @State private var isChoosingFeed = false
+    /// The 2× badge is briefly confirming a lock; see `isShowingSpeedBadge`.
+    @State private var isConfirmingSpeedLock = false
+    /// 2× was locked during the current hold, as opposed to a hold that began
+    /// on a reel already locked.
+    @State private var lockedDuringHold = false
     @Environment(\.scenePhase) private var scenePhase
+
+    private static let speedLockConfirmation: Duration = .milliseconds(750)
 
     var body: some View {
         // The tabs sit above every state, so a feed that is loading, empty,
@@ -18,14 +25,26 @@ struct FeedView: View {
         ZStack(alignment: .top) {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if !store.feeds.isEmpty {
-                FeedSwitcherView(
-                    feeds: store.feeds,
-                    selection: store.selectedFeedURI,
-                    onSelect: select,
-                    onChooseFeeds: { isChoosingFeed = true }
-                )
+            VStack(spacing: 12) {
+                if !store.feeds.isEmpty {
+                    FeedSwitcherView(
+                        feeds: store.feeds,
+                        selection: store.selectedFeedURI,
+                        onSelect: select,
+                        onChooseFeeds: { isChoosingFeed = true }
+                    )
+                }
+                if isShowingSpeedBadge {
+                    ReelSpeedBadge(isHeld: playback.isSpeedHeld, isLocked: playback.isSpeedLocked)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: isShowingSpeedBadge)
+            .sensoryFeedback(.impact(weight: .light), trigger: playback.isSpeedHeld) { _, held in held }
+            .sensoryFeedback(.impact(weight: .medium), trigger: playback.isSpeedLocked)
+            .opacity(playback.isScrubbing ? 0 : 1)
+            .allowsHitTesting(!playback.isScrubbing)
+            .animation(.easeOut(duration: 0.2), value: playback.isScrubbing)
         }
         .background(MonoTheme.background.ignoresSafeArea())
         .sheet(isPresented: $isChoosingFeed) {
@@ -40,8 +59,6 @@ struct FeedView: View {
             }
         }
         .task { await store.loadIfNeeded() }
-        .onAppear { playback.resume(.hidden) }
-        .onDisappear { playback.suspend(.hidden) }
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active {
                 playback.resume(.background)
@@ -49,6 +66,29 @@ struct FeedView: View {
                 playback.suspend(.background)
             }
         }
+        .onChange(of: playback.isSpeedHeld) { _, held in
+            if !held { lockedDuringHold = false }
+        }
+        .task(id: playback.isSpeedLocked) {
+            guard playback.isSpeedLocked else {
+                isConfirmingSpeedLock = false
+                return
+            }
+            if playback.isSpeedHeld { lockedDuringHold = true }
+            isConfirmingSpeedLock = true
+            try? await Task.sleep(for: Self.speedLockConfirmation)
+            guard !Task.isCancelled else { return }
+            isConfirmingSpeedLock = false
+        }
+    }
+
+    /// While holding unlocked, to show the swipe-down hint; briefly after
+    /// locking, to confirm it; and while holding a reel locked earlier, to
+    /// show the swipe-up hint. A locked reel otherwise plays without it.
+    private var isShowingSpeedBadge: Bool {
+        guard playback.isFastForwarding else { return false }
+        if isConfirmingSpeedLock { return true }
+        return playback.isSpeedHeld && !(playback.isSpeedLocked && lockedDuringHold)
     }
 
     @ViewBuilder
@@ -78,10 +118,16 @@ struct FeedView: View {
                             reel: reel,
                             player: playback.players[reel.id],
                             isFocused: reel.id == playback.focusedID,
-                            isPaused: playback.isPausedByUser,
+                            // Holding for 2× plays a paused reel.
+                            isPaused: playback.isPausedByUser && !playback.isFastForwarding,
                             hasFailed: playback.failedIDs.contains(reel.id),
+                            isScrubbing: playback.isScrubbing && reel.id == playback.focusedID,
+                            isSpeedLocked: playback.isSpeedLocked && reel.id == playback.focusedID,
                             bottomInset: geometry.safeAreaInsets.bottom,
-                            onTap: { playback.togglePause() }
+                            onTap: { playback.togglePause() },
+                            onScrub: playback.scrub,
+                            onSpeedHold: playback.holdForSpeed,
+                            onSpeedLock: playback.lockSpeed
                         )
                         .containerRelativeFrame(.vertical)
                         .id(reel.id)
@@ -92,6 +138,8 @@ struct FeedView: View {
             .scrollPosition(id: $visibleReelID)
             .scrollTargetBehavior(.paging)
             .scrollIndicators(.hidden)
+            // The swipes that lock and release 2× must not page the feed.
+            .scrollDisabled(playback.isSpeedHeld)
             .refreshable { await store.refresh() }
             .ignoresSafeArea()
         }

@@ -1,6 +1,16 @@
 import AVFoundation
 import Observation
 
+/// A drag along the focused reel's progress bar, as `ReelScrubber` reports it.
+enum ScrubEvent: Equatable {
+    case began
+    /// The finger moved; show the frame at this time.
+    case moved(to: TimeInterval)
+    /// The finger lifted here. VoiceOver's adjustable action also sends this
+    /// on its own, as a single seek.
+    case ended(at: TimeInterval)
+}
+
 /// Owns every `AVPlayer` in the feed and implements directional preloading
 /// (project plan §5.7.5):
 ///
@@ -41,11 +51,31 @@ final class FeedPlaybackController {
     private(set) var isPausedByUser = false
     /// Reels whose item failed to load, so the cell can say so.
     private(set) var failedIDs: Set<String> = []
+    /// The viewer is dragging the focused reel's progress bar. Playback is
+    /// held until they let go.
+    private(set) var isScrubbing = false
+    /// The viewer is touching and holding the side of the focused reel.
+    private(set) var isSpeedHeld = false
+    /// 2× stays on after the hold ends. Cleared on swipe.
+    private(set) var isSpeedLocked = false
+    /// The viewer swiped up to release 2× during the current hold, so it
+    /// stays at 1× until they lift their finger.
+    private(set) var isHoldReleased = false
+
+    /// The focused reel is playing at `fastRate`.
+    var isFastForwarding: Bool {
+        isSpeedLocked || (isSpeedHeld && !isHoldReleased)
+    }
+
+    static let fastRate: Float = 2
 
     /// Called with each finished watch, however short; see `WatchEventRecorder`.
     @ObservationIgnored var onWatchFinished: (@MainActor (WatchSession) -> Void)?
 
     @ObservationIgnored private var suspensions: Set<Suspension> = []
+    /// The newest scrub position not yet sought; see `scrub(_:)`.
+    @ObservationIgnored private var pendingScrubTime: CMTime?
+    @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var observers: [String: ItemObservers] = [:]
     @ObservationIgnored private var spares: [AVPlayer] = []
     @ObservationIgnored private var audioSessionActive = false
@@ -77,6 +107,11 @@ final class FeedPlaybackController {
         let isNewFocus = focused.id != focusedID
         if isNewFocus {
             isPausedByUser = false
+            isScrubbing = false
+            pendingScrubTime = nil
+            isSpeedHeld = false
+            isSpeedLocked = false
+            isHoldReleased = false
             // Before the outgoing player can be released and lose its position.
             finishWatch()
         }
@@ -119,6 +154,82 @@ final class FeedPlaybackController {
     func togglePause() {
         isPausedByUser.toggle()
         updatePlayback()
+    }
+
+    /// Plays the focused reel at 2× while the viewer holds the side of it,
+    /// even if they had paused it.
+    func holdForSpeed(_ isHolding: Bool) {
+        isSpeedHeld = isHolding
+        isHoldReleased = false
+        updatePlayback()
+    }
+
+    /// Keeps 2× on after the hold ends (swipe down), or returns to 1× (swipe
+    /// up, or tapping the badge). Releasing mid-hold also drops the hold's 2×.
+    func lockSpeed(_ locked: Bool) {
+        isSpeedLocked = locked
+        isHoldReleased = !locked && isSpeedHeld
+        if locked {
+            // Locking means "keep playing like this"; a paused reel would
+            // otherwise stop again when the hold ends.
+            isPausedByUser = false
+        }
+        updatePlayback()
+    }
+
+    /// Moves the focused reel's playback position.
+    ///
+    /// While the finger moves, only one seek runs at a time and each new
+    /// position replaces any still waiting, so the frame keeps up with the
+    /// finger instead of working through stale seeks (Apple's "chase time",
+    /// QA1820). Seeks are exact: keyframes are 2 s apart, so a tolerant seek
+    /// would jump in steps. Letting go seeks to where the finger lifted and
+    /// resumes playback unless the viewer had paused.
+    ///
+    /// A scrub ends the watch in progress and the next one starts where the
+    /// finger lifted, so jumping through the clip is not counted as watching.
+    func scrub(_ event: ScrubEvent) {
+        guard let focusedID, let player = players[focusedID] else { return }
+        switch event {
+        case .began:
+            finishWatch()
+            isScrubbing = true
+            updatePlayback()
+        case let .moved(seconds):
+            guard isScrubbing else { return }
+            pendingScrubTime = CMTime(seconds: seconds, preferredTimescale: 600)
+            seekToPendingScrubTime(on: player)
+        case let .ended(seconds):
+            // Already finished by `.began`, except for VoiceOver's single seek.
+            finishWatch()
+            isScrubbing = false
+            pendingScrubTime = nil
+            // Supersedes any seek still running.
+            player.seek(
+                to: CMTime(seconds: seconds, preferredTimescale: 600),
+                toleranceBefore: .zero,
+                toleranceAfter: .zero
+            )
+            // The seek completes later, so start from its target rather than
+            // the player's current time.
+            startWatch(from: seconds)
+            updatePlayback()
+        }
+    }
+
+    private func seekToPendingScrubTime(on player: AVPlayer) {
+        guard !isSeeking, let time = pendingScrubTime else { return }
+        pendingScrubTime = nil
+        isSeeking = true
+        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak player] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isSeeking = false
+                if self.isScrubbing, let player {
+                    self.seekToPendingScrubTime(on: player)
+                }
+            }
+        }
     }
 
     func suspend(_ reason: Suspension) {
@@ -243,9 +354,11 @@ final class FeedPlaybackController {
 
     // MARK: - Watch measurement
 
-    private func startWatch() {
+    /// Starts measuring the focused reel from `seconds`, or from where its
+    /// player is now.
+    private func startWatch(from seconds: Double? = nil) {
         guard let id = focusedID, suspensions.isEmpty else { return }
-        watch = Watch(id: id, startSeconds: position(of: id), startLoops: loopCounts[id, default: 0])
+        watch = Watch(id: id, startSeconds: seconds ?? position(of: id), startLoops: loopCounts[id, default: 0])
     }
 
     /// Ends the watch in progress and reports it. Must run while the reel's
@@ -287,14 +400,22 @@ final class FeedPlaybackController {
             return
         }
         #if DEBUG
-        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), \(players.count) loaded")
+        print("[playback] focus \(focusedID.split(separator: "/").last ?? ""): suspensions \(suspensions), pausedByUser \(isPausedByUser), scrubbing \(isScrubbing), fast \(isFastForwarding), \(players.count) loaded")
         #endif
-        if suspensions.isEmpty, !isPausedByUser {
+        let isHeldFast = isSpeedHeld && !isHoldReleased
+        if suspensions.isEmpty, !isScrubbing, !isPausedByUser || isHeldFast {
             activateAudioSession()
+            // play() starts at defaultRate, and changes the rate of a player
+            // that is already playing. Set on every play because players are
+            // pooled across reels.
+            player.defaultRate = isFastForwarding ? Self.fastRate : 1
             player.play()
         } else {
             player.pause()
-            if !suspensions.isEmpty {
+            // Deactivating blocks the main thread for a moment, which showed
+            // as a hitch halfway through swiping to another section. Pausing
+            // is enough there; give the audio back only when leaving the app.
+            if suspensions.contains(.background) {
                 deactivateAudioSession()
             }
         }

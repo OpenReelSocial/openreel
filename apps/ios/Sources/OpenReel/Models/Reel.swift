@@ -7,6 +7,7 @@ struct Reel: Identifiable, Hashable {
     let id: String
     /// CID of the post version shown, for references such as watch events.
     let cid: String
+    let authorDID: String
     let authorHandle: String
     let caption: String
     let tags: [String]
@@ -25,6 +26,7 @@ struct Reel: Identifiable, Hashable {
     init(post: VideoPostView) {
         id = post.uri
         cid = post.cid
+        authorDID = post.author.did
         // The AppView reports the handle the DID document claims; fall back to
         // the DID for accounts without one.
         authorHandle = post.author.handle.map { "@\($0)" } ?? post.author.did
