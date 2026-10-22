@@ -44,7 +44,8 @@ function debugDeps(databaseUrl: string | undefined): DebugDeps | undefined {
   }
   listen()
 
-  return { db: createDb(databaseUrl), queries }
+  const password = process.env['DEBUG_PASSWORD']?.trim()
+  return { db: createDb(databaseUrl), queries, ...(password ? { password } : {}) }
 }
 
 serve(
