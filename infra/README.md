@@ -191,9 +191,10 @@ aws logs tail /openreel/dev/containers --follow --log-stream-name-prefix openree
 ```
 
 **Debug portal:** https://dev.openreel.social/debug shows every SQL statement
-live, with the pipeline's state. Sign in as `admin` with the PDS admin password
-(the `/openreel/dev/PDS_ADMIN_PASSWORD` parameter). Only `/debug` is public;
-the rest of the admin service stays on loopback.
+live, with the pipeline's state. It has no password; only `/debug` is public,
+and the rest of the admin service stays on loopback. To require one, set
+`DEBUG_PASSWORD` on the admin service in `dev-server/compose.yaml` (Basic auth,
+user `admin`).
 
 The services report each query to the debug portal (`DEBUG_QUERY_TAP`, on by
 default; it costs one extra Postgres round trip per query). To turn it off,
