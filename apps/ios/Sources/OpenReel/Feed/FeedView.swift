@@ -56,7 +56,7 @@ struct FeedView: View {
             ZStack(alignment: .top) {
                 ScrollView(.vertical) {
                     LazyVStack(spacing: 0) {
-                        ForEach(reels) { reel in
+                        ForEach(store.reels) { reel in
                             ReelCellView(
                                 reel: reel,
                                 player: playback.players[reel.id],
@@ -86,13 +86,6 @@ struct FeedView: View {
                 .refreshable { await store.refresh() }
                 .ignoresSafeArea()
 
-                if reels.isEmpty {
-                    // Inside the feed rather than replacing it, so the tabs
-                    // stay up to switch away.
-                    statusMessage("No \(selectedFeed) videos yet.", systemImage: "film.stack")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-
                 VStack(spacing: 12) {
                     FeedSwitcherView(feeds: MockReelProvider.feedNames, selection: $selectedFeed)
                     if isShowingSpeedBadge {
@@ -111,11 +104,6 @@ struct FeedView: View {
         .onAppear(perform: focusVisibleReel)
         .onChange(of: visibleReelID) { _, _ in focusVisibleReel() }
         .onChange(of: store.reels) { _, _ in focusVisibleReel() }
-        .onChange(of: selectedFeed) { _, _ in
-            // Start the new tab at its first reel.
-            visibleReelID = reels.first?.id
-            focusVisibleReel()
-        }
         .onChange(of: playback.isSpeedHeld) { _, held in
             if !held { lockedDuringHold = false }
         }
@@ -157,20 +145,10 @@ struct FeedView: View {
         .padding(32)
     }
 
-    /// The reels the selected tab shows: a topic tab keeps only reels tagged
-    /// with its topic, and the other tabs show the whole feed.
-    private var reels: [Reel] {
-        guard let topic = MockReelProvider.topicTags[selectedFeed] else { return store.reels }
-        return store.reels.filter { reel in
-            reel.tags.contains { $0.caseInsensitiveCompare(topic) == .orderedSame }
-        }
-    }
-
     /// Points playback at the visible reel and pages in more when near the
-    /// end. A refresh or a tab switch can remove the visible reel; fall back
-    /// to the first.
+    /// end. A refresh can remove the visible reel; fall back to the first.
     private func focusVisibleReel() {
-        let reels = reels
+        let reels = store.reels
         guard !reels.isEmpty else {
             playback.releaseAll()
             return
@@ -181,9 +159,7 @@ struct FeedView: View {
             return
         }
         playback.focus(on: index, in: reels)
-        // Paging follows the whole feed, which the tab may be filtering.
-        let feedIndex = store.reels.firstIndex(where: { $0.id == id }) ?? index
-        Task { await store.loadMoreIfNeeded(currentIndex: feedIndex) }
+        Task { await store.loadMoreIfNeeded(currentIndex: index) }
     }
 }
 

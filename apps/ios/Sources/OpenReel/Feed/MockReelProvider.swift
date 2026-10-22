@@ -8,9 +8,6 @@ enum MockReelProvider {
     /// same reels for now.
     static let feedNames = ["Following", "For You", "Cooking", "Local"]
     static let defaultFeed = "For You"
-    /// Tabs that show only reels with this tag, standing in for topic feed
-    /// generators until those exist. Tabs not listed show the whole feed.
-    static let topicTags = ["Cooking": "cooking", "Local": "local"]
 
     static let page = VideoFeedPage(feed: [
         post(
