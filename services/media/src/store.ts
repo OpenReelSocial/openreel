@@ -4,8 +4,8 @@ import { join } from 'node:path'
 /**
  * Where finished renditions go. Keys are (author DID, blob CID), so objects
  * are immutable and can be cached forever. The filesystem store suits one
- * host behind nginx (ADR-0006); an S3 store implementing the same interface
- * replaces it when media moves to object storage and a CDN.
+ * host behind nginx (ADR-0006); `S3MediaStore` serves the AWS environment
+ * through CloudFront (ADR-0007).
  */
 export interface MediaStore {
   /** Gives the worker a scratch directory to build renditions in. */
@@ -15,11 +15,16 @@ export interface MediaStore {
   discard(workDir: string): Promise<void>
 }
 
-/** Path of a key under the media root; the layout the media CDN and AppView URLs assume. */
-export function keyPath(root: string, did: string, cid: string): string {
+/** Throws unless the DID and CID are safe to use as path or object-key segments. */
+export function assertSafeKey(did: string, cid: string): void {
   if (!/^did:[a-z]+:[a-zA-Z0-9._:%-]+$/.test(did) || !/^[a-z0-9]+$/.test(cid)) {
     throw new Error(`refusing unsafe media key ${did}/${cid}`)
   }
+}
+
+/** Path of a key under the media root; the layout the media CDN and AppView URLs assume. */
+export function keyPath(root: string, did: string, cid: string): string {
+  assertSafeKey(did, cid)
   return join(root, did, cid)
 }
 

@@ -148,6 +148,7 @@ public struct VideoFeedPage: Decodable, Sendable, Equatable {
 /// so it does not go through the session manager.
 public struct AppViewClient: Sendable {
     public static let getFeedNSID = "social.openreel.feed.getFeed"
+    public static let getSuggestedFeedsNSID = "social.openreel.feed.getSuggestedFeeds"
 
     private let xrpc: XRPCClient
 
@@ -167,5 +168,10 @@ public struct AppViewClient: Sendable {
         if let limit { parameters["limit"] = String(limit) }
         if let cursor { parameters["cursor"] = cursor }
         return try await xrpc.query(Self.getFeedNSID, parameters: parameters, as: VideoFeedPage.self)
+    }
+
+    /// The feeds this AppView offers, default first, with how each ranks.
+    public func getSuggestedFeeds() async throws -> [FeedGeneratorView] {
+        try await xrpc.query(Self.getSuggestedFeedsNSID, as: SuggestedFeedsOutput.self).feeds
     }
 }

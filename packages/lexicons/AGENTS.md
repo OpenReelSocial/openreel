@@ -140,6 +140,14 @@ flag the change as potentially breaking in the PR rather than deciding alone.
   `social.openreel.video.defs#postView`, whose `playlist`/`thumbnail` are
   derived media URLs, not record fields (ADR-0006).
 
+- **Feed listing splits like `app.bsky.feed.*`, but carries full views.** A
+  generator answers `social.openreel.feed.describeFeedGenerator`; an AppView
+  answers `social.openreel.feed.getSuggestedFeeds` for clients. Both return
+  `social.openreel.feed.defs#generatorView`, which includes the ranking
+  `weights` (in basis points, per the plan's "weights publicly displayed")
+  because no `feed.generator` records are published yet for an AppView to
+  hydrate from. Once they are, `describeFeedGenerator` can shrink to URIs.
+
 ## Not decided here
 
 - **Swift bindings for the iOS client.** ADR-0002 leaves the Swift generation

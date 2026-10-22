@@ -1,6 +1,8 @@
 import { Kysely, PostgresDialect, type ColumnType, type Generated } from 'kysely'
 import pg from 'pg'
 
+import { queryTapLogger, type CreateDbOptions } from './query-tap.ts'
+
 /**
  * A `timestamptz` column: read back as a `Date`, written as a `Date` or an
  * ISO-8601 string.
@@ -144,9 +146,13 @@ const int8AsNumber: pg.CustomTypesConfig = {
 /**
  * Opens a connection pool to `connectionString` and wraps it in a typed Kysely
  * instance. Nothing is connected until the first query. Close it with
- * {@link closeDb}.
+ * {@link closeDb}. `options.queryTap` announces every query to the admin
+ * service's debug portal (see `query-tap.ts`).
  */
-export function createDb(connectionString: string): Kysely<Database> {
+export function createDb(
+  connectionString: string,
+  options: CreateDbOptions = {},
+): Kysely<Database> {
   if (connectionString.trim() === '') {
     throw new Error('createDb: connection string is empty; set DATABASE_URL')
   }
@@ -155,6 +161,7 @@ export function createDb(connectionString: string): Kysely<Database> {
 
   return new Kysely<Database>({
     dialect: new PostgresDialect({ pool }),
+    ...(options.queryTap === undefined ? {} : { log: queryTapLogger(pool, options.queryTap) }),
   })
 }
 

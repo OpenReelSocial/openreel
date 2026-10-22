@@ -1,17 +1,20 @@
+import OpenReelATProto
 import SwiftUI
 
-/// Row of feed tabs drawn over the top of the video, plus a button to manage
-/// which feeds appear here.
+/// Row of feed tabs drawn over the top of the video, plus a button that shows
+/// how each feed ranks.
 struct FeedSwitcherView: View {
-    let feeds: [String]
-    @Binding var selection: String
+    let feeds: [FeedGeneratorView]
+    /// URI of the selected feed.
+    let selection: String?
+    var onSelect: (FeedGeneratorView) -> Void
     var onChooseFeeds: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 18) {
-                    ForEach(feeds, id: \.self) { feed in
+                    ForEach(feeds) { feed in
                         feedTab(feed)
                     }
                 }
@@ -28,13 +31,13 @@ struct FeedSwitcherView: View {
         .padding(.horizontal, 16)
     }
 
-    private func feedTab(_ feed: String) -> some View {
-        let isSelected = feed == selection
+    private func feedTab(_ feed: FeedGeneratorView) -> some View {
+        let isSelected = feed.uri == selection
         return Button {
-            selection = feed
+            onSelect(feed)
         } label: {
             VStack(spacing: 4) {
-                Text(feed)
+                Text(feed.displayName)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(isSelected ? MonoTheme.primary : MonoTheme.inactiveOverlay)
                 Capsule()

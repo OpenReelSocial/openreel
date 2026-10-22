@@ -54,7 +54,9 @@ The repository is a monorepo. The intended major areas are reflected by reposito
 - `services/classifier/` — automated content classification
 - `services/gateway/` — client/backend integration gateway where applicable
 - `packages/lexicons/` — OpenReel AT Protocol Lexicons
-- `infra/` — deployment and infrastructure-as-code
+- `infra/` — deployment and infrastructure-as-code: the AWS CDK app for the shared dev environment (ADR-0007), with its own `infra/AGENTS.md`
+- `infra/aws/` — the AWS host's deploy script and nginx sites
+- `infra/dev-server/` — the Hetzner dev server (ADR-0005, superseded); its `compose.yaml` is shared with the AWS host
 - `infra/pds/` — PDS deployment configuration and operational tooling. The PDS itself is the upstream `bluesky-social` implementation, which OpenReel operates rather than authors
 - `docs/adr/` — architecture decision records
 
@@ -136,7 +138,7 @@ A good PR description should state:
 
 Use the repository's checked-in commands as they become available. Do not invent commands and present them as if they already work.
 
-`make check` is the canonical pre-PR verification command (ADR-0002). It runs `format-check`, `lint`, `typecheck`, and `test` for the TypeScript workspace, and `.github/workflows/ci.yml` runs the same targets on every pull request to `main`. iOS, classifier, and Lexicon checks are not yet part of it. Inspect the root `Makefile`, package scripts, CI workflows, and component documentation before running or documenting other commands; a fuller update of this file is tracked by DEV-039.
+`make check` is the canonical pre-PR verification command (ADR-0002). It runs `format-check`, `lint`, `typecheck`, `test` (including the CDK assertion tests in `infra/`), and `lex-check` for the TypeScript workspace. `.github/workflows/ci.yml` runs the first four on every pull request to `main`, plus `make infra-synth`. iOS and classifier checks are not yet part of it. Inspect the root `Makefile`, package scripts, CI workflows, and component documentation before running or documenting other commands; a fuller update of this file is tracked by DEV-039.
 
 General rules:
 
@@ -161,18 +163,16 @@ A more specific `apps/ios/AGENTS.md` may add details once the iOS structure stab
 
 ## Infrastructure and Deployment
 
-Infrastructure should become reproducible and reviewable through infrastructure-as-code rather than manual console-only configuration.
-
-Until the infrastructure workflow is established:
+Infrastructure is reproducible and reviewable through infrastructure-as-code rather than manual console-only configuration. The shared dev environment runs on AWS (ADR-0007): the CDK app in `infra/` defines it, and `.github/workflows/deploy-aws.yml` deploys `main` to it through GitHub OIDC and SSM, with no stored cloud credentials. `infra/README.md` documents the few manual steps (DNS in Cloudflare, `cdk bootstrap`/`cdk deploy`, secret generation). There is no production environment yet.
 
 - Do not invent production deployment procedures.
 - Do not create cloud resources simply because a design document mentions them.
 - Do not expose storage, databases, or services publicly without a documented requirement.
 - Prefer least-privilege identities and short-lived credentials.
 - Ordinary coding agents should not require persistent production credentials.
-- Shared/cloud deployments should ultimately flow through reviewed CI/CD rather than arbitrary local agent actions.
+- Shared/cloud deployments flow through reviewed CI/CD rather than arbitrary local agent actions.
 
-When `infra/AGENTS.md` exists, follow its stricter infrastructure-specific rules.
+Follow `infra/AGENTS.md` for its stricter infrastructure-specific rules.
 
 ## Security and Secrets
 

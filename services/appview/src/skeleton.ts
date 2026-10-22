@@ -1,4 +1,4 @@
-import type { SocialOpenreelFeedGetFeedSkeleton } from '@openreel/lexicons'
+import type { SocialOpenreelFeedDefs, SocialOpenreelFeedGetFeedSkeleton } from '@openreel/lexicons'
 
 /** An XRPC error from the feed generator, relayed to the AppView's caller. */
 export class SkeletonError extends Error {
@@ -16,6 +16,8 @@ export interface SkeletonSource {
   getFeedSkeleton(
     params: SocialOpenreelFeedGetFeedSkeleton.QueryParams,
   ): Promise<SocialOpenreelFeedGetFeedSkeleton.OutputSchema>
+  /** The generator's feeds, from `social.openreel.feed.describeFeedGenerator`. */
+  describeFeeds(): Promise<SocialOpenreelFeedDefs.GeneratorView[]>
 }
 
 /** Calls a feed generator's `social.openreel.feed.getFeedSkeleton` over HTTP. */
@@ -24,6 +26,16 @@ export class HttpSkeletonSource implements SkeletonSource {
 
   constructor(baseUrl: string) {
     this.#baseUrl = baseUrl
+  }
+
+  async describeFeeds(): Promise<SocialOpenreelFeedDefs.GeneratorView[]> {
+    const url = `${this.#baseUrl}/xrpc/social.openreel.feed.describeFeedGenerator`
+    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) })
+    if (!res.ok) {
+      throw new SkeletonError(502, 'UpstreamFailure', `feed generator returned HTTP ${res.status}`)
+    }
+    const body = (await res.json()) as { feeds?: SocialOpenreelFeedDefs.GeneratorView[] }
+    return body.feeds ?? []
   }
 
   async getFeedSkeleton(
