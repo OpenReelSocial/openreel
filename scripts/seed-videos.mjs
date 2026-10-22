@@ -10,9 +10,13 @@
 //   PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-videos
 //
 // Or post as an existing account with SEED_HANDLE and SEED_PASSWORD.
+//
+// A clip's caption comes from its file name unless a JSON file with the same
+// name sits beside it (clip.mp4 -> clip.json) giving {"caption", "tags"}.
+// New accounts are named demo-xxxxxx; set HANDLE_PREFIX to change "demo".
 // Needs ffmpeg/ffprobe on PATH.
 
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 
@@ -47,11 +51,17 @@ function clipsFromDir(dir) {
   return readdirSync(dir)
     .filter((name) => VIDEO_TYPES[extname(name).toLowerCase()])
     .sort()
-    .map((name) => ({
-      path: join(dir, name),
-      caption: basename(name, extname(name)).replaceAll(/[-_]+/g, ' '),
-      mimeType: VIDEO_TYPES[extname(name).toLowerCase()],
-    }))
+    .map((name) => {
+      const stem = basename(name, extname(name))
+      const sidecar = join(dir, `${stem}.json`)
+      const meta = existsSync(sidecar) ? JSON.parse(readFileSync(sidecar, 'utf8')) : {}
+      return {
+        path: join(dir, name),
+        caption: meta.caption ?? stem.replaceAll(/[-_]+/g, ' '),
+        tags: meta.tags,
+        mimeType: VIDEO_TYPES[extname(name).toLowerCase()],
+      }
+    })
 }
 
 async function waitForFeed(uris) {
@@ -78,6 +88,7 @@ for (const clip of clips) {
   const uri = await createVideoPost(pdsUrl, account, {
     blob,
     caption: clip.caption,
+    tags: clip.tags,
     probe: probe(clip.path),
   })
   uris.push(uri)

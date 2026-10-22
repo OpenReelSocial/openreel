@@ -45,7 +45,8 @@ export function xrpcPost(pdsUrl, method, body, token) {
 /**
  * Signs in as SEED_HANDLE/SEED_PASSWORD, or creates a disposable demo account
  * (with an invite minted via PDS_ADMIN_PASSWORD when the PDS requires one).
- * The handle domain is HANDLE_DOMAIN, else the PDS's first available domain.
+ * The handle domain is HANDLE_DOMAIN, else the PDS's first available domain;
+ * HANDLE_PREFIX replaces "demo" in the handle.
  */
 export async function session(pdsUrl, env = process.env) {
   if (env.SEED_HANDLE && env.SEED_PASSWORD) {
@@ -72,11 +73,12 @@ export async function session(pdsUrl, env = process.env) {
     handleDomain = server.availableUserDomains?.[0] ?? '.pds.example.com'
   }
 
+  const prefix = env.HANDLE_PREFIX ?? 'demo'
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 6)
   const password = `openreel-demo-${crypto.randomUUID()}`
   const account = await xrpcPost(pdsUrl, 'com.atproto.server.createAccount', {
-    handle: `demo-${suffix}${handleDomain}`,
-    email: `demo-${suffix}@example.com`,
+    handle: `${prefix}-${suffix}${handleDomain}`,
+    email: `${prefix}-${suffix}@example.com`,
     password,
     ...(inviteCode ? { inviteCode } : {}),
   })
@@ -94,7 +96,7 @@ export async function uploadBlob(pdsUrl, { accessJwt }, bytes, mimeType) {
 }
 
 /** Creates a social.openreel.video.post for an uploaded blob; returns its URI. */
-export async function createVideoPost(pdsUrl, { did, accessJwt }, { blob, caption, probe }) {
+export async function createVideoPost(pdsUrl, { did, accessJwt }, { blob, caption, tags, probe }) {
   const { uri } = await xrpcPost(
     pdsUrl,
     'com.atproto.repo.createRecord',
@@ -105,6 +107,7 @@ export async function createVideoPost(pdsUrl, { did, accessJwt }, { blob, captio
         $type: 'social.openreel.video.post',
         video: blob,
         caption,
+        ...(tags?.length ? { tags } : {}),
         ...probe,
         createdAt: new Date().toISOString(),
       },
