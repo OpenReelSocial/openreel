@@ -77,7 +77,10 @@ openreel/
 │   └── dev-environment-tasks.yaml
 ├── scripts/
 │   ├── github/                # backlog seeding
+│   ├── lib/                   # shared helpers for the deployment scripts
+│   ├── e2e-upload.mjs         # timed upload → feed → playback check
 │   ├── seed-videos.mjs        # demo content: upload videos, wait for HLS
+│   ├── smoke.mjs              # black-box health/feed/playback check
 │   └── status.sh              # terminal renderer for the admin status API
 ├── .github/                   # templates, CODEOWNERS, workflows
 ├── .vscode/
