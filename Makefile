@@ -128,6 +128,14 @@ demo-pds-event: ## Create a sample PDS profile and show it at the backend consum
 seed-videos: ## Upload demo videos to the PDS and wait until they play in the feed
 	node scripts/seed-videos.mjs
 
+.PHONY: smoke
+smoke: ## Check a running deployment end to end from outside (PUBLIC_URL, default local)
+	node scripts/smoke.mjs
+
+.PHONY: e2e-upload
+e2e-upload: ## Post one clip and time it through indexing, transcoding, and playback
+	node scripts/e2e-upload.mjs
+
 .PHONY: down
 # --remove-orphans also removes the PDS, which is defined in infra/pds and so is
 # an orphan relative to compose.yaml alone. Without it the PDS survives.
