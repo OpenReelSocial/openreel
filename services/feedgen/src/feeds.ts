@@ -1,5 +1,7 @@
 import type { Database } from '@openreel/db'
-import type { Kysely } from 'kysely'
+import { sql, type Kysely } from 'kysely'
+
+import type { FeedDefinition, SignalWeight } from './config.ts'
 
 export interface SkeletonPage {
   feed: { post: string }[]
@@ -34,11 +36,8 @@ export function decodeCursor(cursor: string): { sortAt: Date; uri: string } {
   return { sortAt: new Date(ms), uri }
 }
 
-/**
- * Newest first, no ranking: every indexed video whose media is ready to play.
- * The placeholder until a recommendation algorithm exists (project plan 5.5).
- */
-export const recent: Feed = {
+/** Newest first, no ranking: every indexed video whose media is ready to play. */
+export const chronological: Feed = {
   async page(db, limit, cursor) {
     let query = db
       .selectFrom('video_post as p')
@@ -73,4 +72,81 @@ export const recent: Feed = {
   },
 }
 
-export const FEEDS: Record<string, Feed> = { recent }
+/** Deepest offset a weighted feed pages to; past this a cursor is rejected. */
+const MAX_OFFSET = 10_000
+
+function decodeOffset(cursor: string): number {
+  const offset = /^\d{1,5}$/.test(cursor) ? Number(cursor) : NaN
+  if (!(offset >= 0 && offset <= MAX_OFFSET)) throw new InvalidCursorError('malformed cursor')
+  return offset
+}
+
+/**
+ * Scores every playable post as a weighted sum of signals, each normalized to
+ * 0-1 (project plan 5.5.4):
+ *
+ * - `views`: the post's view count over the highest view count of any
+ *   playable post, so the most-viewed post scores 1;
+ * - `recency`: 1 when posted, halving every `halfLifeHours`.
+ *
+ * Ties fall back to newest first. Scores move as views arrive, so the cursor
+ * is an offset rather than a keyset: a page can repeat or skip a post whose
+ * rank changed since the previous page. Clients already drop repeats.
+ */
+export function weighted(weights: SignalWeight[]): Feed {
+  const term = (w: SignalWeight) => {
+    switch (w.signal) {
+      case 'views':
+        return sql<number>`${w.weight} * c.views`
+      case 'recency':
+        return sql<number>`${w.weight} * exp(-ln(2) * extract(epoch from (now() - c.sort_at)) / 3600 / ${w.halfLifeHours ?? 24})`
+    }
+  }
+  const score = sql.join(weights.map(term), sql` + `)
+
+  return {
+    async page(db, limit, cursor) {
+      const offset = cursor === undefined ? 0 : decodeOffset(cursor)
+      const candidates = db
+        .selectFrom('video_post as p')
+        .innerJoin('video_media as m', (join) =>
+          join.onRef('m.author_did', '=', 'p.author_did').onRef('m.video_cid', '=', 'p.video_cid'),
+        )
+        .leftJoin('video_post_stats as s', 's.uri', 'p.uri')
+        .select([
+          'p.uri',
+          'p.sort_at',
+          sql<number>`coalesce(s.view_count, 0)::float8 / greatest(max(coalesce(s.view_count, 0)) over (), 1)`.as(
+            'views',
+          ),
+        ])
+        .where('m.status', '=', 'ready')
+
+      const rows = await db
+        .selectFrom(candidates.as('c'))
+        .select(['c.uri', sql<number>`${score}`.as('score')])
+        .orderBy('score', 'desc')
+        .orderBy('c.sort_at', 'desc')
+        .orderBy('c.uri', 'desc')
+        .limit(limit)
+        .offset(offset)
+        .execute()
+
+      const next = offset + rows.length
+      return {
+        feed: rows.map((row) => ({ post: row.uri })),
+        ...(rows.length === limit && next <= MAX_OFFSET ? { cursor: String(next) } : {}),
+      }
+    },
+  }
+}
+
+/** Builds each configured feed, keyed by ID (the generator record's rkey). */
+export function buildFeeds(definitions: FeedDefinition[]): Record<string, Feed> {
+  return Object.fromEntries(
+    definitions.map((def) => [
+      def.id,
+      def.ranking.type === 'chronological' ? chronological : weighted(def.ranking.weights),
+    ]),
+  )
+}

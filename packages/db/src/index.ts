@@ -14,3 +14,11 @@ export {
 } from './database.ts'
 export { createMigrator, getMigrationStatus, migrateToLatest, resetDatabase } from './migrate.ts'
 export { migrationProvider, migrations } from './migrations/index.ts'
+export {
+  listenToQueryTap,
+  QUERY_TAP_CHANNEL,
+  queryTapOptions,
+  tappedQuery,
+  type CreateDbOptions,
+  type TappedQuery,
+} from './query-tap.ts'
