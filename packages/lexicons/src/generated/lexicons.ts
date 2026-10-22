@@ -717,6 +717,112 @@ export const schemaDict = {
       },
     },
   },
+  SocialOpenreelFeedDefs: {
+    lexicon: 1,
+    id: 'social.openreel.feed.defs',
+    defs: {
+      generatorView: {
+        type: 'object',
+        description:
+          'A feed a client can offer the viewer, with its ranking method disclosed. Mirrors the social.openreel.feed.generator record, plus the AT-URI to pass to getFeed and, for weighted feeds, the weights applied.',
+        required: ['uri', 'displayName', 'rankingCriteria'],
+        properties: {
+          uri: {
+            type: 'string',
+            description:
+              "AT-URI of the social.openreel.feed.generator record; the 'feed' parameter of getFeed.",
+            format: 'at-uri',
+          },
+          displayName: {
+            type: 'string',
+            maxGraphemes: 24,
+            maxLength: 240,
+          },
+          description: {
+            type: 'string',
+            maxGraphemes: 300,
+            maxLength: 3000,
+          },
+          rankingCriteria: {
+            type: 'string',
+            description:
+              'Self-declared family of ranking method; see social.openreel.feed.generator.',
+            knownValues: [
+              'chronological',
+              'heuristic',
+              'social',
+              'personalized',
+              'collaborative',
+              'hybrid',
+            ],
+          },
+          weights: {
+            type: 'array',
+            description:
+              'The signals a weighted feed scores posts by and how much each counts. Absent for feeds that are not a weighted sum, such as chronological ones.',
+            items: {
+              type: 'ref',
+              ref: 'lex:social.openreel.feed.defs#rankingWeight',
+            },
+          },
+        },
+      },
+      rankingWeight: {
+        type: 'object',
+        description:
+          "One term of a weighted feed's score. Each signal is normalized to 0-1 before weighting.",
+        required: ['signal', 'weightBps'],
+        properties: {
+          signal: {
+            type: 'string',
+            description:
+              "'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'recency' decays from 1 by half every halfLifeHours.",
+            knownValues: ['views', 'recency'],
+          },
+          weightBps: {
+            type: 'integer',
+            description:
+              "Share of the score in basis points; a feed's weights sum to 10000.",
+            minimum: 0,
+            maximum: 10000,
+          },
+          halfLifeHours: {
+            type: 'integer',
+            description:
+              "For time-decayed signals such as 'recency': hours for the signal to fall by half.",
+            minimum: 1,
+          },
+        },
+      },
+    },
+  },
+  SocialOpenreelFeedDescribeFeedGenerator: {
+    lexicon: 1,
+    id: 'social.openreel.feed.describeFeedGenerator',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Describe the feeds a feed generator serves. Counterpart of app.bsky.feed.describeFeedGenerator, but returns full views with ranking weights so an AppView can list feeds without generator records having been published.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feeds'],
+            properties: {
+              feeds: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.feed.defs#generatorView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   SocialOpenreelFeedGenerator: {
     lexicon: 1,
     id: 'social.openreel.feed.generator',
@@ -888,6 +994,33 @@ export const schemaDict = {
           post: {
             type: 'string',
             format: 'at-uri',
+          },
+        },
+      },
+    },
+  },
+  SocialOpenreelFeedGetSuggestedFeeds: {
+    lexicon: 1,
+    id: 'social.openreel.feed.getSuggestedFeeds',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get the feeds an AppView suggests to clients, in display order, with each one's ranking method disclosed. The first feed is the AppView's suggested default.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feeds'],
+            properties: {
+              feeds: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.feed.defs#generatorView',
+                },
+              },
+            },
           },
         },
       },
@@ -1108,9 +1241,13 @@ export const ids = {
   SocialOpenreelEngagementCompletionRate:
     'social.openreel.engagement.completionRate',
   SocialOpenreelEngagementWatchEvent: 'social.openreel.engagement.watchEvent',
+  SocialOpenreelFeedDefs: 'social.openreel.feed.defs',
+  SocialOpenreelFeedDescribeFeedGenerator:
+    'social.openreel.feed.describeFeedGenerator',
   SocialOpenreelFeedGenerator: 'social.openreel.feed.generator',
   SocialOpenreelFeedGetFeed: 'social.openreel.feed.getFeed',
   SocialOpenreelFeedGetFeedSkeleton: 'social.openreel.feed.getFeedSkeleton',
+  SocialOpenreelFeedGetSuggestedFeeds: 'social.openreel.feed.getSuggestedFeeds',
   SocialOpenreelVideoDefs: 'social.openreel.video.defs',
   SocialOpenreelVideoPost: 'social.openreel.video.post',
 } as const

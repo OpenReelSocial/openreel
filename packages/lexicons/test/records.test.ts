@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SocialOpenreelEngagementCompletionRate,
   SocialOpenreelEngagementWatchEvent,
+  SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
   SocialOpenreelVideoPost,
   ids,
@@ -17,6 +18,7 @@ import {
   blob,
   completionRate,
   feedGenerator,
+  generatorView,
   sampleCid,
   videoPost,
   watchEvent,
@@ -225,5 +227,55 @@ describe(ids.SocialOpenreelFeedGenerator, () => {
     mutate(record)
     expectRejected(nsid, record)
     expect(SocialOpenreelFeedGenerator.validateRecord(record).success).toBe(false)
+  })
+})
+
+describe(ids.SocialOpenreelFeedDefs, () => {
+  it('accepts a weighted generator view and a chronological one without weights', () => {
+    expect(SocialOpenreelFeedDefs.validateGeneratorView(generatorView()).success).toBe(true)
+    const chronological: Record<string, unknown> = { ...generatorView() }
+    delete chronological['weights']
+    chronological['rankingCriteria'] = 'chronological'
+    expect(SocialOpenreelFeedDefs.validateGeneratorView(chronological).success).toBe(true)
+  })
+
+  it('accepts an unknown future signal', () => {
+    const view = generatorView()
+    view.weights = [{ signal: 'completion', weightBps: 10_000 }]
+    expect(SocialOpenreelFeedDefs.validateGeneratorView(view).success).toBe(true)
+  })
+
+  it.each<Mutation>([
+    ['missing uri', (r) => delete r['uri']],
+    ['uri that is not an AT URI', (r) => (r['uri'] = 'https://openreel.social/feeds/trending')],
+    ['missing displayName', (r) => delete r['displayName']],
+    ['displayName over maxGraphemes', (r) => (r['displayName'] = 'x'.repeat(25))],
+    ['missing rankingCriteria', (r) => delete r['rankingCriteria']],
+    ['weight without signal', (r) => (r['weights'] = [{ weightBps: 10_000 }])],
+    ['weightBps above 10000', (r) => (r['weights'] = [{ signal: 'views', weightBps: 10_001 }])],
+    ['fractional weightBps', (r) => (r['weights'] = [{ signal: 'views', weightBps: 0.5 }])],
+    [
+      'halfLifeHours of zero',
+      (r) => (r['weights'] = [{ signal: 'recency', weightBps: 10_000, halfLifeHours: 0 }]),
+    ],
+  ])('rejects %s', (_name, mutate) => {
+    const value: Record<string, unknown> = { ...generatorView() }
+    mutate(value)
+    expect(SocialOpenreelFeedDefs.validateGeneratorView(value).success).toBe(false)
+  })
+})
+
+describe(ids.SocialOpenreelFeedGetSuggestedFeeds, () => {
+  it('returns generator views', () => {
+    const output = { feeds: [generatorView()] }
+    expect(() =>
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedGetSuggestedFeeds, output),
+    ).not.toThrow()
+    expect(() =>
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedDescribeFeedGenerator, output),
+    ).not.toThrow()
+    expect(() =>
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedGetSuggestedFeeds, {}),
+    ).toThrow()
   })
 })

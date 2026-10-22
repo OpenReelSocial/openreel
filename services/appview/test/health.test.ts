@@ -9,7 +9,10 @@ describe('appview GET /health', () => {
     const app = createApp({
       // Never connects: /health does not query.
       db: createDb('postgres://nobody:nothing@203.0.113.1:1/none'),
-      skeleton: { getFeedSkeleton: () => Promise.resolve({ feed: [] }) },
+      skeleton: {
+        getFeedSkeleton: () => Promise.resolve({ feed: [] }),
+        describeFeeds: () => Promise.resolve([]),
+      },
       defaultFeedUri: 'at://openreel.social/social.openreel.feed.generator/recent',
       mediaPublicUrl: 'https://media.test',
     })
