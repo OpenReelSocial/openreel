@@ -14,6 +14,25 @@ export interface EnvironmentConfig {
   readonly mediaDomain: string
   /** `owner/name` of the repository GitHub Actions deploys from. */
   readonly githubRepository: string
+  /**
+   * GitHub environment whose jobs may deploy from any branch (manual
+   * dispatch). Pushes to main may always deploy.
+   */
+  readonly githubDeployEnvironment: string
+  /** EC2 instance type of the single Compose host. */
+  readonly instanceType: string
+  /**
+   * Ubuntu 24.04 LTS amd64 AMI for the host. Pinned rather than resolved from
+   * Canonical's SSM parameter at deploy time, because a new AMI replaces the
+   * instance and with it every volume the Compose stack keeps on its disk.
+   */
+  readonly hostAmi: string
+  /** Root volume size; holds Docker images and every Compose volume. */
+  readonly hostVolumeGiB: number
+  /** Where alarm and budget notifications go. No subscriptions when undefined. */
+  readonly alertEmail: string | undefined
+  /** Monthly AWS Budget, in USD, that triggers email alerts. */
+  readonly monthlyBudgetUsd: number
 }
 
 export const devConfig: EnvironmentConfig = {
@@ -25,6 +44,15 @@ export const devConfig: EnvironmentConfig = {
   domain: 'dev.openreel.social',
   mediaDomain: 'media.dev.openreel.social',
   githubRepository: 'OpenReelSocial/openreel',
+  githubDeployEnvironment: 'aws-dev',
+  instanceType: 't3a.large',
+  // ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20261004
+  hostAmi: 'ami-0fa5967347d08d2df',
+  hostVolumeGiB: 60,
+  // Passed at deploy time (`cdk deploy -c alertEmail=...`) so no personal
+  // address is committed.
+  alertEmail: undefined,
+  monthlyBudgetUsd: 100,
 }
 
 /** `openreel-<env>-<name>`: the prefix every named AWS resource carries. */

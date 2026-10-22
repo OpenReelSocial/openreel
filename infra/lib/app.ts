@@ -1,9 +1,11 @@
 import { Tags, type App } from 'aws-cdk-lib'
 
+import { CertificateStack } from './certificate-stack.ts'
 import { standardTags, type EnvironmentConfig } from './config.ts'
 import { DevStack } from './dev-stack.ts'
 
 export interface OpenReelStacks {
+  readonly certificate: CertificateStack
   readonly dev: DevStack
 }
 
@@ -21,12 +23,18 @@ export function addStacks(app: App, config: EnvironmentConfig): OpenReelStacks {
     config.account === undefined
       ? { region: config.region }
       : { account: config.account, region: config.region }
+  const certificate = new CertificateStack(app, 'OpenReel-Dev-Certificate', {
+    env,
+    config,
+    description: `TLS certificate for ${config.mediaDomain} (ADR-0007)`,
+  })
   const dev = new DevStack(app, 'OpenReel-Dev', {
     env,
     config,
+    mediaCertificate: certificate.mediaCertificate,
     description: 'OpenReel shared dev/demo backend (ADR-0007)',
     terminationProtection: true,
   })
 
-  return { dev }
+  return { certificate, dev }
 }
