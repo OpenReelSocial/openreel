@@ -67,6 +67,9 @@ services:
       PORT: 3001
       SERVICE_VERSION: *tag
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      # Report queries to the admin debug portal (/debug). Set DEBUG_QUERY_TAP=0
+      # in .env (on AWS, as a Parameter Store value) to turn it off.
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       REDIS_URL: redis://redis:6379
       JETSTREAM_URL: ws://jetstream:6008/subscribe
       PLC_URL: http://plc:8080
@@ -101,6 +104,9 @@ services:
       PORT: 3002
       SERVICE_VERSION: *tag
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      # Report queries to the admin debug portal (/debug). Set DEBUG_QUERY_TAP=0
+      # in .env (on AWS, as a Parameter Store value) to turn it off.
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       REDIS_URL: redis://redis:6379
     ports:
       - '127.0.0.1:4103:3002'
@@ -131,6 +137,9 @@ services:
       PORT: 3005
       SERVICE_VERSION: *tag
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      # Report queries to the admin debug portal (/debug). Set DEBUG_QUERY_TAP=0
+      # in .env (on AWS, as a Parameter Store value) to turn it off.
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       PLC_URL: http://plc:8080
       # Fetch blobs from the PDS over the Compose network rather than out
       # through the public hostname and back.
@@ -188,6 +197,8 @@ services:
     restart: unless-stopped
     environment:
       PORT: 3003
+      # For the debug portal at /debug; loopback-only like the rest of admin.
+      DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
       SERVICE_VERSION: *tag
     ports:
       - '127.0.0.1:4104:3003'

@@ -18,6 +18,12 @@ make check       # pre-PR gate: format, lint, typecheck, test
 make down        # stop everything, keep volumes
 ```
 
+**Debug portal:** http://localhost:3003/debug shows every SQL statement the
+AppView, feed generator, and media worker run, live, next to the pipeline's
+state (view leaderboard, latest watch events, transcode jobs). Services report
+queries over Postgres `NOTIFY` when `DEBUG_QUERY_TAP=1`, which the local
+Compose stack sets by default; set it to `0` in `.env` to turn it off.
+
 `make up` also generates local PDS secrets into the git-ignored
 `infra/pds/.env`. If a local Postgres or Redis already owns port 5432 or 6379,
 change `POSTGRES_PORT` or `REDIS_PORT` in `.env` before `make up`. Run `make`

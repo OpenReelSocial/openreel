@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3'
-import { createDb } from '@openreel/db'
+import { createDb, queryTapOptions } from '@openreel/db'
 import { PlcResolver, serve } from '@openreel/service-core'
 
 import { createApp, DEFAULT_PORT, SERVICE_NAME } from './app.ts'
@@ -11,7 +11,7 @@ import { transcode } from './transcode.ts'
 import { Worker } from './worker.ts'
 
 const config = readConfig()
-const db = createDb(config.databaseUrl)
+const db = createDb(config.databaseUrl, queryTapOptions(SERVICE_NAME))
 const store =
   config.store.kind === 's3'
     ? new S3MediaStore(new S3Client({}), config.store.bucket)
