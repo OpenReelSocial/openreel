@@ -1,8 +1,9 @@
 # ADR-0007: Shared dev/demo backend on AWS
 
-- **Status:** Proposed
+- **Status:** Accepted (in service 2026-10-22)
 - **Date:** 2026-10-21
-- **Deciders:** Andrew Hellman (pending review: Zack Murry, Hfarah-1)
+- **Deciders:** Andrew Hellman
+- **Supersedes:** ADR-0005
 
 ## Context
 
@@ -64,8 +65,15 @@ Run the shared dev/demo backend on AWS in `us-east-1`, defined in a CDK app at
   CI synthesize, diff, and test the CDK app; application deploys go through
   the CI workflow only. `infra/AGENTS.md` holds the rules.
 
-The Hetzner server keeps running until the AWS environment has passed its
-smoke tests and the iOS app points at it; then ADR-0005 is marked superseded.
+The Hetzner server kept running until the AWS environment had passed its
+smoke tests and the iOS app pointed at it. Both happened on 2026-10-22: the
+deploy workflow, `make smoke`, and `make e2e-upload` passed against
+`dev.openreel.social`, and the app was tested on a device. ADR-0005 is
+superseded; its deployment keeps running only until it is shut down.
+
+Implemented in `infra/` (CDK stacks, host deploy script, nginx),
+`.github/workflows/deploy-aws.yml`, `services/media/src/s3-store.ts`, and the
+iOS `Backend.aws` default; `infra/README.md` is the operating guide.
 
 ## Alternatives considered
 

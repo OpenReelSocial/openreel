@@ -5,10 +5,9 @@
 //   make seed-videos                          # 6 generated clips, local stack
 //   VIDEO_DIR=~/clips make seed-videos        # your own .mp4/.mov files
 //
-// Against the dev server (sign-up needs an invite there):
-//   PDS_URL=https://openreel.zackmurry.com \
-//   APPVIEW_URL=https://openreel.zackmurry.com/appview \
-//   HANDLE_DOMAIN=.openreel.zackmurry.com PDS_ADMIN_PASSWORD=... make seed-videos
+// Against the shared AWS environment (sign-up needs an invite there; see
+// infra/README.md for the admin password):
+//   PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-videos
 //
 // Or post as an existing account with SEED_HANDLE and SEED_PASSWORD.
 // Needs ffmpeg/ffprobe on PATH.

@@ -2,8 +2,12 @@
 
 The AWS CDK app for the shared dev/demo environment (ADR-0007), plus Compose
 configuration for operated components (`pds/`) and the Hetzner dev server
-(`dev-server/`, ADR-0005). Rules for changing anything here are in
+(`dev-server/`, ADR-0005, superseded). Rules for changing anything here are in
 [`AGENTS.md`](AGENTS.md).
+
+**The shared environment is live at https://dev.openreel.social** (media at
+https://media.dev.openreel.social), deployed from `main` by
+`.github/workflows/deploy-aws.yml`. The iOS app uses it by default.
 
 ## Layout
 
@@ -139,11 +143,24 @@ The workflow then checks the public endpoints and that the AppView reports
 the deployed SHA. The host's output, truncated to its last 24,000
 characters, is in the workflow log; container logs are in CloudWatch.
 
-Media starts on the host (`MEDIA_STORE=fs`, served at `/media/`). Once the
-media worker supports S3, set the repository variables `MEDIA_STORE=s3`,
-`AWS_MEDIA_BUCKET` (the `MediaBucket` output), and
-`MEDIA_PUBLIC_URL=https://media.dev.openreel.social`, then redeploy. Videos
-transcoded before the switch stay on the host and need re-seeding.
+Media is written to S3 and served by CloudFront: the repository variables
+`MEDIA_STORE=s3`, `AWS_MEDIA_BUCKET` (the `MediaBucket` output), and
+`MEDIA_PUBLIC_URL=https://media.dev.openreel.social` are set. Without them the
+host falls back to `MEDIA_STORE=fs`, serving renditions itself at `/media/`;
+videos transcoded under one setting are not visible under the other and need
+re-seeding.
+
+To check the environment from outside, and to seed demo content:
+
+```sh
+PUBLIC_URL=https://dev.openreel.social make smoke
+PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-videos
+PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make e2e-upload
+```
+
+`PDS_ADMIN_PASSWORD` is the `/openreel/dev/PDS_ADMIN_PASSWORD` parameter. To
+use it without printing it:
+`PDS_ADMIN_PASSWORD="$(AWS_PROFILE=openreel-dev aws ssm get-parameter --region us-east-1 --name /openreel/dev/PDS_ADMIN_PASSWORD --with-decryption --query Parameter.Value --output text)"`.
 
 To create an account (sign-up needs an invite), open a shell with
 `aws ssm start-session` and run:

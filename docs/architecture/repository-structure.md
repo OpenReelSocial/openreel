@@ -66,7 +66,7 @@ openreel/
 │   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
 │   │   ├── scripts/           #   generate-secrets.sh
 │   │   └── .env.example
-│   └── dev-server/            # shared dev/demo server deployment      ADR-0005
+│   └── dev-server/            # Hetzner dev server (superseded)        ADR-0005
 │       ├── compose.yaml       #   whole backend from registry images; also the AWS host's
 │       ├── nginx/             #   TLS reverse proxy site, installed by hand
 │       ├── scripts/           #   init-env.sh (server .env + secrets)
