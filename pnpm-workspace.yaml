@@ -4,6 +4,9 @@
 packages:
   - services/*
   - packages/*
+  # The AWS CDK app (ADR-0007). Its subdirectories dev-server/ and pds/ are
+  # Compose configuration, not packages.
+  - infra
 
 # esbuild ships a platform binary that Vitest requires at runtime; pnpm 10 blocks
 # dependency build scripts unless they are explicitly allowed.
