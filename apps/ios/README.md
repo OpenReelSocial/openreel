@@ -25,7 +25,7 @@ Regenerate the project any time `project.yml` or the file layout under
 | `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), and the sign-in / account UI under `Auth/` |
 | `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, and the AppView `getFeed` client. No UI. See ADR-0004 |
 | `OAuth/ios-client-metadata.json` | The OAuth client-metadata document; must be hosted at `https://openreel.social/oauth/ios-client-metadata.json` for release builds |
-| `Supporting/Info.plist` | URL scheme for the OAuth redirect and the local-networking ATS exception |
+| `Supporting/Info.plist` | URL schemes for the OAuth redirects (release, dev server, AWS) and the local-networking ATS exception |
 
 ## Signing in
 
@@ -57,10 +57,18 @@ spec's loopback development client.
   ```
 
   Works on a device as well as the Simulator.
-- **Local stack:** set `OPENREEL_BACKEND=local` under Product → Scheme → Edit
-  Scheme → Run → Arguments → Environment Variables. Simulator only: a device
-  cannot reach your Mac's `localhost`, and plain-http servers are only
-  accepted for loopback hosts.
+- **AWS host:** set `OPENREEL_BACKEND=aws` under Product → Scheme → Edit
+  Scheme → Run → Arguments → Environment Variables. The AWS dev/demo host
+  from ADR-0007 at `dev.openreel.social` has the same layout as the dev
+  server; its nginx hosts the client metadata at
+  `https://dev.openreel.social/oauth/ios-client-metadata.json`, redirecting
+  to `social.openreel.dev:/oauth/callback`. Its PDS also requires an invite
+  (`infra/README.md`), and handles end in `.dev.openreel.social`. Works on a
+  device, but the variable only applies to launches from Xcode: opened from
+  the home screen, the app falls back to the default backend.
+- **Local stack:** set `OPENREEL_BACKEND=local` the same way. Simulator only:
+  a device cannot reach your Mac's `localhost`, and plain-http servers are
+  only accepted for loopback hosts.
 
 For the local stack:
 
