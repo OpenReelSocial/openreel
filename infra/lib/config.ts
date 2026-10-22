@@ -15,6 +15,13 @@ export interface EnvironmentConfig {
   /** `owner/name` of the repository GitHub Actions deploys from. */
   readonly githubRepository: string
   /**
+   * The same repository as GitHub's immutable OIDC subject names it,
+   * `owner@<owner id>/name@<repo id>`. This repository opts in to immutable
+   * subjects (`gh api repos/<owner>/<name>/actions/oidc/customization/sub`),
+   * so its tokens carry this form; it survives renames of the org or repo.
+   */
+  readonly githubRepositoryImmutable: string
+  /**
    * GitHub environment whose jobs may deploy from any branch (manual
    * dispatch). Pushes to main may always deploy.
    */
@@ -44,6 +51,7 @@ export const devConfig: EnvironmentConfig = {
   domain: 'dev.openreel.social',
   mediaDomain: 'media.dev.openreel.social',
   githubRepository: 'OpenReelSocial/openreel',
+  githubRepositoryImmutable: 'OpenReelSocial@321618312/openreel@1348002581',
   githubDeployEnvironment: 'aws-dev',
   instanceType: 't3a.large',
   // ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20261004

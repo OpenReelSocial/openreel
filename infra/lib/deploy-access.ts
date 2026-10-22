@@ -33,6 +33,12 @@ export class DeployAccess extends Construct {
     })
 
     const repo = config.githubRepository
+    // Immutable subjects (what this repository's tokens use) first; the
+    // classic form keeps deploys working if that setting is ever turned off.
+    const subjects = [config.githubRepositoryImmutable, repo].flatMap((name) => [
+      `repo:${name}:ref:refs/heads/main`,
+      `repo:${name}:environment:${config.githubDeployEnvironment}`,
+    ])
     this.role = new Role(this, 'Role', {
       roleName: resourceName(config, 'github-deploy'),
       description: `Assumed by GitHub Actions in ${repo} to deploy the ${config.name} environment`,
@@ -45,10 +51,7 @@ export class DeployAccess extends Construct {
             // Pushes to main, or any job in the protected deploy environment
             // (manual dispatch of a branch). Pull requests and forks match
             // neither.
-            [`${githubIssuer}:sub`]: [
-              `repo:${repo}:ref:refs/heads/main`,
-              `repo:${repo}:environment:${config.githubDeployEnvironment}`,
-            ],
+            [`${githubIssuer}:sub`]: subjects,
           },
         },
         'sts:AssumeRoleWithWebIdentity',
