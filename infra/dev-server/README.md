@@ -20,6 +20,10 @@ network.
 
 ## Deploying
 
+`compose.yaml` here is shared with the AWS host (ADR-0007,
+`../README.md`); the two differ only in `.env` (`IMAGE_PREFIX`,
+`MEDIA_PUBLIC_URL`, `MEDIA_STORE`), whose defaults keep this server as it was.
+
 When CI passes on `main`, the workflow builds every image, pushes it to GHCR
 tagged with the commit SHA, then over SSH:
 

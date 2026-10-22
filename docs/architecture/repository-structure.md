@@ -59,13 +59,15 @@ openreel/
 │   ├── lib/                   #   config.ts, app.ts (addStacks), dev-stack.ts
 │   ├── test/                  #   aws-cdk-lib/assertions tests
 │   ├── AGENTS.md              #   scoped rules: IaC only, least privilege, humans deploy
-│   ├── README.md              #   commands and one-time AWS account setup
+│   ├── README.md              #   commands, account setup, deploying, operating
+│   ├── aws/                   #   AWS host: deploy.sh (run via SSM), nginx sites
+│   ├── scripts/               #   init-secrets.sh (Parameter Store, run by a human)
 │   ├── pds/                   # upstream ATProto event infrastructure
 │   │   ├── compose.yaml       #   PDS, private PLC, Jetstream overlay
 │   │   ├── scripts/           #   generate-secrets.sh
 │   │   └── .env.example
 │   └── dev-server/            # shared dev/demo server deployment      ADR-0005
-│       ├── compose.yaml       #   whole backend from GHCR images
+│       ├── compose.yaml       #   whole backend from registry images; also the AWS host's
 │       ├── nginx/             #   TLS reverse proxy site, installed by hand
 │       ├── scripts/           #   init-env.sh (server .env + secrets)
 │       └── .env.example
