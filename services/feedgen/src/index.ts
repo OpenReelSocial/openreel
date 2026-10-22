@@ -1,4 +1,4 @@
-import { createDb } from '@openreel/db'
+import { createDb, queryTapOptions } from '@openreel/db'
 import { serve } from '@openreel/service-core'
 
 import { createApp, DEFAULT_PORT, SERVICE_NAME } from './app.ts'
@@ -13,7 +13,7 @@ console.log(`[feedgen] serving feeds: ${feeds.map((f) => f.id).join(', ')}`)
 
 serve(
   createApp({
-    db: createDb(databaseUrl),
+    db: createDb(databaseUrl, queryTapOptions(SERVICE_NAME)),
     feeds,
     publisher: process.env['FEEDGEN_PUBLISHER']?.trim() || 'openreel.social',
   }),

@@ -16,7 +16,7 @@ The former shared backend at **https://openreel.zackmurry.com**, deployed by
 | `/appview/` | AppView | 4102 |
 | `/feedgen/` | feed generator | 4103 |
 | `/media/` | HLS renditions (media-cdn) | 4106 |
-| — | admin status page | 4104 |
+| — | admin status page and debug portal (`/debug`) | 4104 |
 | — | event-consumer | 4105 |
 | — | media worker status (`/status`) | 4107 |
 
@@ -56,7 +56,7 @@ Admin page and event stream, through an SSH tunnel:
 
 ```sh
 ssh -L 4104:127.0.0.1:4104 -L 4105:127.0.0.1:4105 dvk-server
-# http://localhost:4104 and http://localhost:4105/events
+# http://localhost:4104, http://localhost:4104/debug, and http://localhost:4105/events
 ```
 
 Sign-up needs an invite (`PDS_INVITE_REQUIRED=true`). To make one, run on the

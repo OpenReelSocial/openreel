@@ -1,4 +1,4 @@
-import { createDb } from '@openreel/db'
+import { createDb, queryTapOptions } from '@openreel/db'
 import { PlcResolver, serve } from '@openreel/service-core'
 
 import { createApp, DEFAULT_PORT, SERVICE_NAME } from './app.ts'
@@ -8,7 +8,7 @@ import { JetstreamSubscription } from './indexer/subscription.ts'
 import { HttpSkeletonSource } from './skeleton.ts'
 
 const config = readConfig()
-const db = createDb(config.databaseUrl)
+const db = createDb(config.databaseUrl, queryTapOptions(SERVICE_NAME))
 
 const subscription = new JetstreamSubscription(
   config.jetstreamUrl,

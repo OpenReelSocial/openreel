@@ -123,12 +123,18 @@ importers:
 
   services/admin:
     dependencies:
+      '@openreel/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@openreel/service-core':
         specifier: workspace:*
         version: link:../../packages/service-core
       express:
         specifier: ^5.1.0
         version: 5.2.1
+      kysely:
+        specifier: ^0.29.6
+        version: 0.29.6
     devDependencies:
       '@types/express':
         specifier: ^5.0.3
