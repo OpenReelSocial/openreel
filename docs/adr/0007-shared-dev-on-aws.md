@@ -29,10 +29,13 @@ open (the project plan contradicts itself between CloudFront and Cloudflare).
 Run the shared dev/demo backend on AWS in `us-east-1`, defined in a CDK app at
 `infra/` (stacks under `infra/lib/`), as one environment named `dev`:
 
-- **Compute.** One EC2 instance (x86, `t3a.large` class, Amazon Linux 2023)
+- **Compute.** One EC2 instance (x86, `t3a.large` class, Ubuntu 24.04 LTS)
   in a public subnet with an Elastic IP, running the existing Compose stack
   from ECR images. No NAT gateway, no load balancer. nginx and certbot on the
-  host terminate TLS, as on the Hetzner server.
+  host terminate TLS, as on the Hetzner server. Ubuntu ships Docker Compose,
+  nginx, and certbot as distribution packages, so host setup matches the
+  Hetzner server's; its AMI is pinned, because a new AMI replaces the
+  instance and the Compose volumes on its disk.
 - **Images.** CI builds each backend image and pushes it to ECR, tagged with
   the commit SHA and `latest` for main.
 - **Media.** Renditions go to a private S3 bucket (Block Public Access on)
