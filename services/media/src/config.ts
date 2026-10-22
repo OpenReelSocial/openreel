@@ -1,9 +1,15 @@
+/**
+ * Where renditions are published. `fs` writes under `MEDIA_ROOT`, served
+ * read-only by the media CDN (local Compose). `s3` uploads to `MEDIA_S3_BUCKET`
+ * with the SDK's default region and credential chain (AWS, ADR-0007).
+ */
+export type StoreConfig = { kind: 'fs'; root: string } | { kind: 's3'; bucket: string }
+
 /** Media service settings, read once at startup. */
 export interface MediaConfig {
   databaseUrl: string
   plcUrl: string
-  /** Directory renditions are written under; served read-only by the media CDN. */
-  mediaRoot: string
+  store: StoreConfig
   /**
    * PDS origins to reach at a different address, e.g. `http://localhost:3000`
    * (what a local DID document says) at `http://pds:3000` (what a container
@@ -40,6 +46,18 @@ export function parseAliases(raw: string | undefined): Map<string, string> {
   return aliases
 }
 
+export function readStoreConfig(env: NodeJS.ProcessEnv): StoreConfig {
+  const kind = env['MEDIA_STORE'] ?? 'fs'
+  if (kind === 'fs') return { kind, root: env['MEDIA_ROOT'] ?? '/media' }
+  if (kind === 's3') {
+    const bucket = env['MEDIA_S3_BUCKET']
+    if (bucket === undefined || bucket.trim() === '')
+      throw new Error('MEDIA_S3_BUCKET is not set (required when MEDIA_STORE=s3)')
+    return { kind, bucket: bucket.trim() }
+  }
+  throw new Error(`Invalid MEDIA_STORE: expected "fs" or "s3", received "${kind}"`)
+}
+
 export function readConfig(env: NodeJS.ProcessEnv = process.env): MediaConfig {
   const databaseUrl = env['DATABASE_URL']
   if (databaseUrl === undefined || databaseUrl.trim() === '')
@@ -47,7 +65,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): MediaConfig {
   return {
     databaseUrl,
     plcUrl: env['PLC_URL'] ?? 'http://localhost:2582',
-    mediaRoot: env['MEDIA_ROOT'] ?? '/media',
+    store: readStoreConfig(env),
     pdsAliases: parseAliases(env['PDS_ALIASES']),
     pollIntervalMs: positiveInt(env, 'MEDIA_POLL_INTERVAL_MS', 2_000),
     maxAttempts: positiveInt(env, 'MEDIA_MAX_ATTEMPTS', 3),
