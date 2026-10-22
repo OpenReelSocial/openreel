@@ -18,6 +18,9 @@ configuration for operated components (`pds/`) and the Hetzner dev server
 | `lib/media.ts` | Private S3 bucket and CloudFront distribution for HLS |
 | `lib/deploy-access.ts` | GitHub OIDC provider and the deploy role |
 | `lib/monitoring.ts` | SNS alerts, alarms, Route 53 health checks, dashboard, budget |
+| `aws/scripts/deploy.sh` | Runs on the host for every deploy (see below) |
+| `aws/nginx/` | The host's nginx site, and the HTTP-only site used before TLS exists |
+| `scripts/init-secrets.sh` | One-time generation of the host's secrets in Parameter Store |
 | `test/` | Vitest + `aws-cdk-lib/assertions` tests, run by `make test` |
 
 Every resource is tagged `Project=openreel`, `Environment=dev`,
@@ -85,10 +88,23 @@ A human runs these, in order, with `AWS_PROFILE=openreel-dev`. Below,
    | A | `dev` | `HostIp` |
    | CNAME | `media.dev` | `MediaDistributionDomain` |
 
-4. **GitHub.** Add the repository variable `AWS_DEPLOY_ROLE_ARN` with the
-   value of `DeployRoleArn`, and create the `aws-dev` environment with
-   required reviewers. Only `main` and jobs in that environment can assume
-   the role.
+4. **Secrets.** Run `AWS_PROFILE=openreel-dev infra/scripts/init-secrets.sh`
+   once. It generates the PDS and database secrets into Parameter Store
+   under `/openreel/dev/` without printing them, and skips any that exist.
+5. **GitHub.** In the repository settings, create the `aws-dev` environment
+   (Settings → Environments). Add required reviewers there if every deploy
+   should wait for approval. Then add these repository variables from the
+   stack outputs:
+
+   | Variable | Value |
+   |---|---|
+   | `AWS_DEPLOY_ROLE_ARN` | `DeployRoleArn` |
+   | `AWS_INSTANCE_ID` | `InstanceId` |
+   | `ACME_EMAIL` (optional) | address for Let's Encrypt expiry notices |
+
+   The deploy role trusts only jobs in the `aws-dev` environment (or
+   unscoped jobs on `main`); `.github/workflows/deploy-aws.yml` runs every
+   job there. The workflow skips itself until `AWS_DEPLOY_ROLE_ARN` is set.
 
 The stack outputs are shown after a deploy, or with
 `aws cloudformation describe-stacks --stack-name OpenReel-Dev --query 'Stacks[0].Outputs'`.
@@ -96,6 +112,48 @@ The stack outputs are shown after a deploy, or with
 The host's first boot installs Docker, nginx, certbot, the AWS CLI, and the
 CloudWatch agent, and sends every container's logs to CloudWatch. The deploy
 workflow installs the application itself.
+
+`infra/cdk.context.json` records the availability zones CDK looked up in the
+account. It is committed, so every synth picks the same subnets.
+
+## Deploying the application
+
+`.github/workflows/deploy-aws.yml` deploys after CI passes on `main`, or from
+any branch with **Run workflow** in the Actions tab. It builds the six images,
+pushes them to ECR as `openreel-dev-<image>:<sha>`, and runs
+[`aws/scripts/deploy.sh`](aws/scripts/deploy.sh) on the host through SSM Run
+Command. That script, as root on the host:
+
+1. downloads this commit's `compose.yaml` (shared with the Hetzner server,
+   `dev-server/compose.yaml`), the media CDN config, and the nginx sites
+   from GitHub, pinned to the commit SHA;
+2. writes `/srv/openreel/.env` from Parameter Store plus non-secret settings;
+3. on the first run, obtains a Let's Encrypt certificate for
+   `dev.openreel.social` through a webroot challenge (needs the A record in
+   place), then installs [`aws/nginx/openreel.conf`](aws/nginx/openreel.conf),
+   TLS included. certbot renews it and reloads nginx on its own;
+4. logs in to ECR with the instance role, pulls, migrates, and starts every
+   container, failing if any is unhealthy after five minutes.
+
+The workflow then checks the public endpoints and that the AppView reports
+the deployed SHA. The host's output, truncated to its last 24,000
+characters, is in the workflow log; container logs are in CloudWatch.
+
+Media starts on the host (`MEDIA_STORE=fs`, served at `/media/`). Once the
+media worker supports S3, set the repository variables `MEDIA_STORE=s3`,
+`AWS_MEDIA_BUCKET` (the `MediaBucket` output), and
+`MEDIA_PUBLIC_URL=https://media.dev.openreel.social`, then redeploy. Videos
+transcoded before the switch stay on the host and need re-seeding.
+
+To create an account (sign-up needs an invite), open a shell with
+`aws ssm start-session` and run:
+
+```sh
+sudo -i
+cd /srv/openreel && set -a && . ./.env && set +a
+curl -s -u "admin:$PDS_ADMIN_PASSWORD" -H 'content-type: application/json' \
+  -d '{"useCount":1}' http://127.0.0.1:4100/xrpc/com.atproto.server.createInviteCode
+```
 
 Until DNS points at the host and the application is running, the PDS and
 AppView health alarms are in `ALARM`. That is expected.

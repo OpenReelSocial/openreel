@@ -1,17 +1,24 @@
-# Shared dev/demo server (ADR-0005). Runs on the server at /srv/openreel; the
-# deploy workflow (.github/workflows/deploy-dev-server.yml) copies this file
-# over, pulls the images it names, migrates, and restarts.
+# Shared dev/demo servers. Runs at /srv/openreel on both deployments:
+#   - the Hetzner server (ADR-0005), via .github/workflows/deploy-dev-server.yml,
+#     with GHCR images and .env secrets from scripts/init-env.sh;
+#   - the AWS host (ADR-0007), via .github/workflows/deploy-aws.yml, with ECR
+#     images and .env rendered from SSM Parameter Store by
+#     infra/aws/scripts/deploy.sh.
+# Each workflow copies this file over, pulls the images it names, migrates,
+# and restarts. The differences between the two live in .env, not here.
 #
 # Standalone rather than an overlay of the root compose.yaml: the local files
 # build from source and publish development ports, while this one pulls the
-# GHCR images CI built and publishes only to loopback for nginx to front.
+# images CI built and publishes only to loopback for nginx to front.
 #
-# Values come from /srv/openreel/.env on the server (see .env.example here),
-# whose secrets scripts/init-env.sh generates. Nothing secret is in this file.
+# Nothing secret is in this file.
 
 name: openreel
 
 x-image-tag: &tag ${IMAGE_TAG:-latest}
+
+# Registry and repository prefix; each image is <prefix>-<service>. GHCR on
+# Hetzner, <account>.dkr.ecr.<region>.amazonaws.com/openreel-dev on AWS.
 
 services:
   postgres:
@@ -45,7 +52,7 @@ services:
 
   # Not started by 'up'; the deploy job runs it before restarting services.
   migrate:
-    image: ghcr.io/openreelsocial/openreel-db-migrate:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-db-migrate:${IMAGE_TAG:-latest}
     profiles: [tools]
     environment:
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
@@ -54,7 +61,7 @@ services:
         condition: service_healthy
 
   appview:
-    image: ghcr.io/openreelsocial/openreel-appview:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-appview:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: 3001
@@ -64,7 +71,9 @@ services:
       JETSTREAM_URL: ws://jetstream:6008/subscribe
       PLC_URL: http://plc:8080
       FEEDGEN_URL: http://feedgen:3002
-      MEDIA_PUBLIC_URL: https://${PDS_HOSTNAME}/media
+      # The media-cdn container behind host nginx unless .env names a CDN
+      # (CloudFront on AWS).
+      MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-https://${PDS_HOSTNAME}/media}
     ports:
       - '127.0.0.1:4102:3001'
     depends_on:
@@ -86,7 +95,7 @@ services:
       start_period: 10s
 
   feedgen:
-    image: ghcr.io/openreelsocial/openreel-feedgen:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-feedgen:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: 3002
@@ -116,7 +125,7 @@ services:
   # Transcodes uploaded video blobs into HLS (ADR-0006). One job at a time:
   # ffmpeg uses every core, and the host is shared.
   media:
-    image: ghcr.io/openreelsocial/openreel-media:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-media:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: 3005
@@ -127,6 +136,11 @@ services:
       # through the public hostname and back.
       PDS_ALIASES: https://${PDS_HOSTNAME}=http://pds:3000
       MEDIA_ROOT: /media
+      # fs writes MEDIA_ROOT for media-cdn; s3 writes MEDIA_S3_BUCKET, using
+      # the AWS host's instance role.
+      MEDIA_STORE: ${MEDIA_STORE:-fs}
+      MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-}
     ports:
       - '127.0.0.1:4107:3005'
     volumes:
@@ -170,7 +184,7 @@ services:
   # Unauthenticated status page: loopback only, never proxied by nginx. Reach it
   # with 'ssh -L 4104:127.0.0.1:4104 <server>' and http://localhost:4104.
   admin:
-    image: ghcr.io/openreelsocial/openreel-admin:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: 3003
@@ -311,7 +325,7 @@ services:
 
   # Loopback only, like admin: 'ssh -L 4105:127.0.0.1:4105 <server>'.
   event-consumer:
-    image: ghcr.io/openreelsocial/openreel-event-consumer:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/openreelsocial/openreel}-event-consumer:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: 3004
