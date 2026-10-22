@@ -19,9 +19,12 @@ import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
 import * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
+import * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
+import * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
 import * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
 import * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 import * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
+import * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
 import * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
 import * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
@@ -35,9 +38,12 @@ export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
 export * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
+export * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
+export * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
 export * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
 export * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 export * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
+export * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
 export * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
 export * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
@@ -267,6 +273,18 @@ export class SocialOpenreelFeedNS {
     this.generator = new SocialOpenreelFeedGeneratorRecord(client)
   }
 
+  describeFeedGenerator(
+    params?: SocialOpenreelFeedDescribeFeedGenerator.QueryParams,
+    opts?: SocialOpenreelFeedDescribeFeedGenerator.CallOptions,
+  ): Promise<SocialOpenreelFeedDescribeFeedGenerator.Response> {
+    return this._client.call(
+      'social.openreel.feed.describeFeedGenerator',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
   getFeed(
     params?: SocialOpenreelFeedGetFeed.QueryParams,
     opts?: SocialOpenreelFeedGetFeed.CallOptions,
@@ -287,6 +305,18 @@ export class SocialOpenreelFeedNS {
       .catch((e) => {
         throw SocialOpenreelFeedGetFeedSkeleton.toKnownErr(e)
       })
+  }
+
+  getSuggestedFeeds(
+    params?: SocialOpenreelFeedGetSuggestedFeeds.QueryParams,
+    opts?: SocialOpenreelFeedGetSuggestedFeeds.CallOptions,
+  ): Promise<SocialOpenreelFeedGetSuggestedFeeds.Response> {
+    return this._client.call(
+      'social.openreel.feed.getSuggestedFeeds',
+      params,
+      undefined,
+      opts,
+    )
   }
 }
 

@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.feed.describeFeedGenerator",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Describe the feeds a feed generator serves. Counterpart of app.bsky.feed.describeFeedGenerator, but returns full views with ranking weights so an AppView can list feeds without generator records having been published.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feeds"],
+          "properties": {
+            "feeds": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "social.openreel.feed.defs#generatorView" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

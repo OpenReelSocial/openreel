@@ -74,5 +74,26 @@ export function createApp(deps: AppViewDeps): Express {
     }
   })
 
+  app.get(
+    `/xrpc/${ids.SocialOpenreelFeedGetSuggestedFeeds}`,
+    async (_req: Request, res: Response) => {
+      try {
+        const feeds = await deps.skeleton.describeFeeds()
+        // The default feed leads, so a client that shows the first tab selected
+        // starts where getFeed without a `feed` parameter would.
+        const index = feeds.findIndex((feed) => feed.uri === deps.defaultFeedUri)
+        if (index > 0) feeds.unshift(...feeds.splice(index, 1))
+        res.status(200).json({ feeds })
+      } catch (error) {
+        if (error instanceof SkeletonError) {
+          xrpcError(res, error.status, error.error, error.message)
+          return
+        }
+        console.error('[appview] getSuggestedFeeds failed:', error)
+        xrpcError(res, 500, 'InternalServerError', 'failed to list feeds')
+      }
+    },
+  )
+
   return app
 }

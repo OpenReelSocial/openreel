@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.feed.getSuggestedFeeds",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get the feeds an AppView suggests to clients, in display order, with each one's ranking method disclosed. The first feed is the AppView's suggested default.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feeds"],
+          "properties": {
+            "feeds": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "social.openreel.feed.defs#generatorView" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
