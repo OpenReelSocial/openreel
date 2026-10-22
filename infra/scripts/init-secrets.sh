@@ -20,6 +20,13 @@ for tool in aws openssl xxd; do
   command -v "$tool" >/dev/null || { echo "error: $tool not found" >&2; exit 1; }
 done
 
+# Values reach the AWS CLI through a private file rather than arguments, so
+# they never appear in the process list. (The CLI cannot read
+# --cli-input-json from /dev/stdin.)
+scratch="$(mktemp -d)"
+chmod 700 "$scratch"
+trap 'rm -rf "$scratch"' EXIT
+
 generate() {
   case $1 in
     PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX)
@@ -38,8 +45,9 @@ for key in POSTGRES_PASSWORD PLC_DB_PASSWORD PDS_JWT_SECRET PDS_ADMIN_PASSWORD \
   fi
   value="$(generate "$key")"
   [[ "$value" =~ ^[0-9a-f]+$ ]] || { echo "error: generating $key failed" >&2; exit 1; }
-  # Through stdin, so the value is not visible in the process list.
-  printf '{"Name":"%s","Type":"SecureString","Value":"%s"}' "$name" "$value" |
-    aws ssm put-parameter --region "$region" --cli-input-json file:///dev/stdin >/dev/null
+  (umask 077 && printf '{"Name":"%s","Type":"SecureString","Value":"%s"}' "$name" "$value" \
+    >"$scratch/parameter.json")
+  aws ssm put-parameter --region "$region" --cli-input-json "file://$scratch/parameter.json" >/dev/null
+  rm -f "$scratch/parameter.json"
   echo "created:   $name"
 done
