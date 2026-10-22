@@ -85,7 +85,10 @@ describe('IAM', () => {
             Condition: {
               StringEquals: {
                 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+                // This repository's tokens use GitHub's immutable subject form.
                 'token.actions.githubusercontent.com:sub': [
+                  'repo:OpenReelSocial@321618312/openreel@1348002581:ref:refs/heads/main',
+                  'repo:OpenReelSocial@321618312/openreel@1348002581:environment:aws-dev',
                   'repo:OpenReelSocial/openreel:ref:refs/heads/main',
                   'repo:OpenReelSocial/openreel:environment:aws-dev',
                 ],
