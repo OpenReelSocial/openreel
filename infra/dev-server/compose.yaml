@@ -198,9 +198,9 @@ services:
     environment:
       PORT: 3003
       # For the debug portal at /debug, which the AWS host's nginx exposes
-      # publicly; DEBUG_PASSWORD puts it behind Basic auth (user 'admin').
+      # publicly and without a password (dev data only). Setting
+      # DEBUG_PASSWORD here would put it behind Basic auth (user 'admin').
       DATABASE_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
-      DEBUG_PASSWORD: ${PDS_ADMIN_PASSWORD}
       SERVICE_VERSION: *tag
     ports:
       - '127.0.0.1:4104:3003'
