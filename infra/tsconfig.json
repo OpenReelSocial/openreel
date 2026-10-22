@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    // aws-cdk-lib's jsii-generated declarations are not written for this flag:
+    // its own classes (Vpc, Bucket) fail to satisfy its own interfaces under it.
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["bin/**/*.ts", "lib/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+}

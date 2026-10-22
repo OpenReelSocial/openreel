@@ -7,6 +7,7 @@ import { CID } from 'multiformats/cid'
 import type {
   SocialOpenreelEngagementCompletionRate,
   SocialOpenreelEngagementWatchEvent,
+  SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
   SocialOpenreelVideoPost,
 } from '../src/index.ts'
@@ -71,5 +72,18 @@ export function feedGenerator(): SocialOpenreelFeedGenerator.Record {
     avatar: blob('image/png', 40_000),
     rankingCriteria: 'heuristic',
     createdAt: '2026-09-15T12:00:00.000Z',
+  }
+}
+
+export function generatorView(): SocialOpenreelFeedDefs.GeneratorView {
+  return {
+    uri: 'at://openreel.social/social.openreel.feed.generator/trending',
+    displayName: 'Trending',
+    description: 'Most watched lately.',
+    rankingCriteria: 'heuristic',
+    weights: [
+      { signal: 'views', weightBps: 7_000 },
+      { signal: 'recency', weightBps: 3_000, halfLifeHours: 24 },
+    ],
   }
 }

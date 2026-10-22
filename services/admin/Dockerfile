@@ -12,10 +12,12 @@ WORKDIR /app
 # Manifests first so dependency installation caches independently of source.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages/service-core/package.json packages/service-core/
+COPY packages/db/package.json packages/db/
 COPY services/admin/package.json services/admin/
 RUN pnpm install --frozen-lockfile
 
 COPY packages/service-core packages/service-core
+COPY packages/db packages/db
 COPY services/admin services/admin
 RUN pnpm --filter @openreel/admin... run build
 

@@ -66,6 +66,8 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       # Compose service names, not localhost: each container has its own loopback.
       DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
+      # Report every query to the admin debug portal (http://localhost:3003/debug).
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       REDIS_URL: redis://redis:6379
       # Jetstream and the PLC come from infra/pds/compose.yaml; without them
       # ('make up-core') the indexer just keeps retrying.
@@ -103,6 +105,8 @@ services:
       PORT: 3002
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
+      # Report every query to the admin debug portal (http://localhost:3003/debug).
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       REDIS_URL: redis://redis:6379
     ports:
       - '${FEEDGEN_PORT:-3002}:3002'
@@ -134,6 +138,8 @@ services:
       PORT: 3005
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
+      # Report every query to the admin debug portal (http://localhost:3003/debug).
+      DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       PLC_URL: http://plc:8080
       # Local DID documents say the PDS is at localhost:3000, which is the
       # host's loopback, not this container's.
@@ -189,6 +195,8 @@ services:
     environment:
       PORT: 3003
       NODE_ENV: ${NODE_ENV:-development}
+      # For the debug portal at /debug; the status page does not need it.
+      DATABASE_URL: postgres://${POSTGRES_USER:-openreel}:${POSTGRES_PASSWORD:-openreel_dev}@postgres:5432/${POSTGRES_DB:-openreel}
     ports:
       - '127.0.0.1:${ADMIN_PORT:-3003}:3003'
     depends_on:

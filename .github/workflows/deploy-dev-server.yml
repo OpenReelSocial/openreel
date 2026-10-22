@@ -1,4 +1,6 @@
-# Continuous deployment to the shared dev/demo server (ADR-0005).
+# Continuous deployment to the Hetzner dev/demo server (ADR-0005). Superseded
+# by the AWS environment (ADR-0007, deploy-aws.yml); kept until the server is
+# shut down, at which point this workflow and its DEPLOY_SSH_KEY secret go too.
 #
 # After CI passes on main, build every backend image, push it to GHCR tagged
 # with the commit SHA, then on the server: pull, migrate, restart, and wait for
