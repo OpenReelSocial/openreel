@@ -51,7 +51,6 @@ ${MAP}
       </div>
       <p class="key">
         <span><svg viewBox="0 0 28 6"><path d="M0,3 H28" stroke="#3d4fd6" stroke-width="2.5"/></svg>Reported by our services</span>
-        <span><svg viewBox="0 0 28 6"><path d="M0,3 H28" stroke="#3d4fd6" stroke-width="2.5" stroke-dasharray="5 4"/></svg>Inferred from a later event</span>
         <span><svg viewBox="0 0 28 6"><path d="M0,3 H28" stroke="#9aa3ad" stroke-width="1.25" stroke-dasharray="4 4"/></svg>Happens, but we can't see it</span>
       </p>
     </div>
@@ -212,7 +211,6 @@ const STYLES = `
   .edge text { font: 11.5px var(--mono); fill: var(--muted); }
   .edge.done path { stroke: var(--c); stroke-width: 1.75; opacity: 0.4; }
   .edge.lit path { stroke: var(--c); stroke-width: 2.75; opacity: 1; }
-  .edge.inferred path { stroke-dasharray: 5 4; }
   .edge.lit text { fill: var(--c); }
   .pulse { fill: var(--c); }
 
@@ -280,8 +278,6 @@ const STYLES = `
   .span .bar { position: relative; height: 8px; background: #edf0f3; border-radius: 1px; }
   .span .bar i { position: absolute; top: 0; bottom: 0; min-width: 2px; background: var(--c); border-radius: 1px; }
   .span .ms { font: 11.5px var(--mono); text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .span.inferred .purpose, .span.inferred .detail, .span.inferred .action { color: var(--faint); }
-  .span.inferred .bar { background: none; }
   .span.offmap .detail { text-decoration: underline dotted; }
   .span.error .purpose, .span.error .detail { color: var(--bad); }
 
@@ -400,8 +396,9 @@ const SCRIPT = String.raw`
         const steps = []
         if (e.event === 'commit') {
           // The write reached the PDS before the commit; its timing is unknown.
-          steps.push({ ...base, t: start, ms: 0, from: 'client', to: 'pds', hops: ['client>pds'], action: 'write', inferred: true,
-            purpose: 'Client wrote record to PDS (inferred)', detail: 'client → pds · ' + short(e.collection), error: undefined })
+          // The PDS does not report the write, so it has no duration.
+          steps.push({ ...base, t: start, ms: undefined, from: 'client', to: 'pds', hops: ['client>pds'], action: 'write',
+            purpose: 'Client wrote record to PDS', detail: 'client → pds · ' + short(e.collection), error: undefined })
         }
         steps.push({ ...base, t: start, ms: e.relayMs, from: 'pds', to: e.service, hops: ['pds>relay', 'relay>' + e.service], action: 'event',
           purpose: 'Receive ' + e.event + ' event from Jetstream', detail: 'pds → relay → ' + e.service + ' · ' + what, error: undefined })
@@ -469,7 +466,7 @@ const SCRIPT = String.raw`
       .map((step, i) => ({ ...step, order: i }))
       .sort((a, b) => a.t - b.t || a.order - b.order)
     const t0 = Math.min(...steps.map((s) => s.t))
-    const t1 = Math.max(...steps.map((s) => s.t + s.ms))
+    const t1 = Math.max(...steps.map((s) => s.t + (s.ms || 0)))
     const reads = new Set()
     const writes = new Set()
     for (const s of steps) {
@@ -492,23 +489,22 @@ const SCRIPT = String.raw`
   // Map drawing.
   // -------------------------------------------------------------------------
   function clearMap() {
-    for (const n of document.querySelectorAll('#map .lit, #map .done, #map .inferred, #map .read, #map .write')) {
-      n.classList.remove('lit', 'done', 'inferred', 'read', 'write')
+    for (const n of document.querySelectorAll('#map .lit, #map .done, #map .read, #map .write')) {
+      n.classList.remove('lit', 'done', 'read', 'write')
     }
     $('overlay').replaceChildren()
   }
 
-  function lightHop(key, color, cls, inferred) {
+  function lightHop(key, color, cls) {
     const edge = $(edgeId(key))
     if (!edge) return
     edge.style.setProperty('--c', color)
     edge.classList.add(cls)
-    if (inferred) edge.classList.add('inferred')
   }
 
   function lightStep(step, cls, hops) {
     const color = ZONE_OF[step.to] || 'var(--ink)'
-    for (const key of hops || step.hops) lightHop(key, color, cls, step.inferred)
+    for (const key of hops || step.hops) lightHop(key, color, cls)
     if (cls !== 'lit') return
     const node = $('n-' + step.to)
     if (node) {
@@ -565,7 +561,7 @@ const SCRIPT = String.raw`
     const color = ZONE_OF[step.to] || 'var(--ink)'
     for (const key of step.hops) {
       if (!(await travel(key, color, token))) return
-      lightHop(key, color, 'lit', step.inferred)
+      lightHop(key, color, 'lit')
     }
     if (token === drawToken) lightStep(step, 'lit')
   }
@@ -601,7 +597,7 @@ const SCRIPT = String.raw`
     const list = el('div', 'spans')
     trace.rows = trace.steps.map((step, i) => {
       const onMap = step.hops.every((key) => key in EDGES)
-      const row = el('button', 'span' + (step.inferred ? ' inferred' : '') + (onMap ? '' : ' offmap') + (step.error ? ' error' : ''))
+      const row = el('button', 'span' + (onMap ? '' : ' offmap') + (step.error ? ' error' : ''))
       row.type = 'button'
       row.style.setProperty('--c', ZONE_OF[step.to] || 'var(--ink)')
       const what = el('span', 'what')
@@ -611,13 +607,13 @@ const SCRIPT = String.raw`
       )
       if (!onMap) what.title = 'No edge for this hop on the map yet'
       const bar = el('span', 'bar')
-      if (!step.inferred) {
+      if (step.ms !== undefined) {
         const fill = el('i')
         fill.style.left = ((step.t - trace.t0) / trace.total) * 100 + '%'
         fill.style.width = (step.ms / trace.total) * 100 + '%'
         bar.append(fill)
       }
-      row.append(el('span', 'action ' + step.action, step.action), what, bar, el('span', 'ms', step.inferred ? '' : fmtMs(step.ms)))
+      row.append(el('span', 'action ' + step.action, step.action), what, bar, el('span', 'ms', step.ms === undefined ? '' : fmtMs(step.ms)))
       row.onclick = () => {
         pause()
         go(traces.indexOf(trace), i, true)
@@ -680,8 +676,8 @@ const SCRIPT = String.raw`
     box.append(
       el('span', 'count', 'Step ' + (pos.si + 1) + ' of ' + trace.steps.length),
       el('span', 'now', step.purpose || 'Unlabelled call site'),
-      el('span', 'action', step.action + (step.inferred ? ', inferred' : '')),
-      el('span', 'detail', step.detail + (step.inferred ? '' : ' · ' + fmtMs(step.ms)) + (step.error ? ' · failed: ' + step.error : '')),
+      el('span', 'action', step.action),
+      el('span', 'detail', step.detail + (step.ms === undefined ? '' : ' · ' + fmtMs(step.ms)) + (step.error ? ' · failed: ' + step.error : '')),
     )
     const toggle = el('button', 'raw-toggle', rawOpen ? 'Hide the raw event' : 'Show the raw event')
     toggle.type = 'button'
