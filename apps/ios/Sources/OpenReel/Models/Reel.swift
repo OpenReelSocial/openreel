@@ -18,6 +18,9 @@ struct Reel: Identifiable, Hashable {
     let aspectRatio: Double?
     /// Length of the video, as transcoded if known, else as the author claimed.
     let durationMs: Int?
+    /// Likes as the AppView last counted them; `LikeStore` adds the viewer's
+    /// own change until the AppView catches up.
+    let likeCount: Int
     let accessibilityLabel: String?
     /// Moderation labels to show on the reel. The AppView does not return
     /// labels yet, so this is always empty for real posts.
@@ -36,6 +39,7 @@ struct Reel: Identifiable, Hashable {
         posterURL = post.thumbnail
         aspectRatio = post.aspectRatio?.value
         durationMs = post.durationMs ?? post.record?.durationMs
+        likeCount = post.likeCount ?? 0
         accessibilityLabel = post.record?.alt
     }
 

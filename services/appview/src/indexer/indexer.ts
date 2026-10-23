@@ -3,11 +3,13 @@ import type { AtprotoIdentity } from '@openreel/service-core'
 import { sql, type Kysely } from 'kysely'
 
 import type { AccountEvent, CommitEvent, IdentityEvent, JetstreamEvent } from './events.ts'
+import { readLike } from './like.ts'
 import { readVideoPost } from './video-post.ts'
 import { readWatchEvent } from './watch-event.ts'
 
 export const VIDEO_POST_COLLECTION = 'social.openreel.video.post'
 export const WATCH_EVENT_COLLECTION = 'social.openreel.engagement.watchEvent'
+export const LIKE_COLLECTION = 'social.openreel.engagement.like'
 
 /** Account statuses whose content must no longer be served. */
 const REMOVED_STATUSES = new Set(['deleted', 'takendown'])
@@ -35,6 +37,7 @@ export class Indexer {
       case 'commit':
         if (event.commit.collection === VIDEO_POST_COLLECTION) await this.#videoPost(event)
         else if (event.commit.collection === WATCH_EVENT_COLLECTION) await this.#watchEvent(event)
+        else if (event.commit.collection === LIKE_COLLECTION) await this.#like(event)
         return
       case 'identity':
         await this.#identityChanged(event)
@@ -87,7 +90,7 @@ export class Indexer {
         .values({ author_did: event.did, video_cid: fields.videoCid })
         .onConflict((oc) => oc.columns(['author_did', 'video_cid']).doNothing())
         .execute()
-      // Watch events can be indexed before their post; count them now.
+      // Watch events and likes can be indexed before their post; count them now.
       await refreshStats(tx, [uri])
     })
   }
@@ -144,6 +147,54 @@ export class Indexer {
     })
   }
 
+  async #like(event: CommitEvent): Promise<void> {
+    const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
+
+    if (event.commit.operation === 'delete') {
+      await this.#db.transaction().execute(async (tx) => {
+        const deleted = await tx
+          .deleteFrom('video_like')
+          .where('uri', '=', uri)
+          .returning('subject_uri')
+          .execute()
+        await refreshStats(
+          tx,
+          deleted.map((row) => row.subject_uri),
+        )
+      })
+      return
+    }
+
+    const fields = event.commit.record && readLike(event.commit.record)
+    if (fields === undefined || event.commit.cid === undefined) {
+      console.warn(`[appview] skipping invalid ${LIKE_COLLECTION} record ${uri}`)
+      return
+    }
+
+    await this.#ensureActor(event.did)
+    const columns = {
+      cid: event.commit.cid,
+      subject_uri: fields.subjectUri,
+      subject_cid: fields.subjectCid,
+      created_at: fields.createdAt,
+    }
+
+    await this.#db.transaction().execute(async (tx) => {
+      // An edit could point the like at another post; recount the old one too.
+      const previous = await tx
+        .selectFrom('video_like')
+        .select('subject_uri')
+        .where('uri', '=', uri)
+        .executeTakeFirst()
+      await tx
+        .insertInto('video_like')
+        .values({ uri, actor_did: event.did, ...columns })
+        .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+        .execute()
+      await refreshStats(tx, [fields.subjectUri, ...(previous ? [previous.subject_uri] : [])])
+    })
+  }
+
   async #identityChanged(event: IdentityEvent): Promise<void> {
     const handle = event.identity.handle ?? (await this.#resolveHandle(event.did))
     await this.#db
@@ -163,9 +214,14 @@ export class Indexer {
         .where('actor_did', '=', event.did)
         .returning('subject_uri')
         .execute()
+      const liked = await tx
+        .deleteFrom('video_like')
+        .where('actor_did', '=', event.did)
+        .returning('subject_uri')
+        .execute()
       await refreshStats(
         tx,
-        watched.map((row) => row.subject_uri),
+        [...watched, ...liked].map((row) => row.subject_uri),
       )
     })
   }
@@ -199,34 +255,51 @@ export class Indexer {
 }
 
 /**
- * Recomputes `video_post_stats` for each post from its indexed watch events.
- * Counting rather than incrementing keeps replays idempotent: indexing the same
- * event twice leaves the same numbers. Posts that are not indexed are skipped
- * (the stats row references the post); indexing the post recounts it.
+ * Recomputes `video_post_stats` for each post from its indexed watch events
+ * and likes. Counting rather than incrementing keeps replays idempotent:
+ * indexing the same event twice leaves the same numbers. Posts that are not
+ * indexed are skipped (the stats row references the post); indexing the post
+ * recounts it.
  */
 async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void> {
   const unique = [...new Set(uris)]
   if (unique.length === 0) return
   await db
     .insertInto('video_post_stats')
-    .columns(['uri', 'view_count', 'avg_completion_rate', 'updated_at'])
+    .columns(['uri', 'view_count', 'avg_completion_rate', 'like_count', 'updated_at'])
     .expression(
       db
         .selectFrom('video_post as p')
-        .leftJoin('watch_event as w', 'w.subject_uri', 'p.uri')
         .select([
           'p.uri',
-          (eb) => eb.fn.count<number>('w.uri').as('view_count'),
-          (eb) => eb.fn.avg<number>('w.completion_rate').as('avg_completion_rate'),
+          (eb) =>
+            eb
+              .selectFrom('watch_event as w')
+              .select((w) => w.fn.countAll<number>().as('n'))
+              .whereRef('w.subject_uri', '=', 'p.uri')
+              .as('view_count'),
+          (eb) =>
+            eb
+              .selectFrom('watch_event as w')
+              .select((w) => w.fn.avg<number>('w.completion_rate').as('avg'))
+              .whereRef('w.subject_uri', '=', 'p.uri')
+              .as('avg_completion_rate'),
+          // Distinct likers: an account that wrote two likes of a post counts once.
+          (eb) =>
+            eb
+              .selectFrom('video_like as l')
+              .select(sql<number>`count(distinct l.actor_did)`.as('n'))
+              .whereRef('l.subject_uri', '=', 'p.uri')
+              .as('like_count'),
           sql<Date>`now()`.as('updated_at'),
         ])
-        .where('p.uri', 'in', unique)
-        .groupBy('p.uri'),
+        .where('p.uri', 'in', unique),
     )
     .onConflict((oc) =>
       oc.column('uri').doUpdateSet((eb) => ({
         view_count: eb.ref('excluded.view_count'),
         avg_completion_rate: eb.ref('excluded.avg_completion_rate'),
+        like_count: eb.ref('excluded.like_count'),
         updated_at: eb.ref('excluded.updated_at'),
       })),
     )

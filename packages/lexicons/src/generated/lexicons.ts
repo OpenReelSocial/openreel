@@ -654,6 +654,35 @@ export const schemaDict = {
       },
     },
   },
+  SocialOpenreelEngagementLike: {
+    lexicon: 1,
+    id: 'social.openreel.engagement.like',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The repository owner likes a video. Written to the liker's own repository; deleting the record removes the like. Like other repository records it is public. Mirrors app.bsky.feed.like, scoped to OpenReel video posts.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'createdAt'],
+          properties: {
+            subject: {
+              type: 'ref',
+              description:
+                'The social.openreel.video.post that was liked, pinned to the version seen.',
+              ref: 'lex:com.atproto.repo.strongRef',
+            },
+            createdAt: {
+              type: 'string',
+              description: 'Client-declared timestamp when the like was made.',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   SocialOpenreelEngagementWatchEvent: {
     lexicon: 1,
     id: 'social.openreel.engagement.watchEvent',
@@ -776,8 +805,8 @@ export const schemaDict = {
           signal: {
             type: 'string',
             description:
-              "'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'recency' decays from 1 by half every halfLifeHours.",
-            knownValues: ['views', 'recency'],
+              "'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'likes' is its like count (indexed social.openreel.engagement.like records) relative to the most-liked post; 'recency' decays from 1 by half every halfLifeHours.",
+            knownValues: ['views', 'likes', 'recency'],
           },
           weightBps: {
             type: 'integer',
@@ -1073,6 +1102,12 @@ export const schemaDict = {
               'Duration of the transcoded video in milliseconds, as measured by the media pipeline.',
             minimum: 1,
           },
+          likeCount: {
+            type: 'integer',
+            description:
+              'Number of accounts the AppView has seen like the post (social.openreel.engagement.like records).',
+            minimum: 0,
+          },
           indexedAt: {
             type: 'string',
             format: 'datetime',
@@ -1240,6 +1275,7 @@ export const ids = {
   ComAtprotoRepoStrongRef: 'com.atproto.repo.strongRef',
   SocialOpenreelEngagementCompletionRate:
     'social.openreel.engagement.completionRate',
+  SocialOpenreelEngagementLike: 'social.openreel.engagement.like',
   SocialOpenreelEngagementWatchEvent: 'social.openreel.engagement.watchEvent',
   SocialOpenreelFeedDefs: 'social.openreel.feed.defs',
   SocialOpenreelFeedDescribeFeedGenerator:

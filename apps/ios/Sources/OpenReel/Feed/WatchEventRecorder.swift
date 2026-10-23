@@ -2,8 +2,8 @@ import Foundation
 import OpenReelATProto
 
 /// Publishes finished watches as `social.openreel.engagement.watchEvent`
-/// records in the viewer's own repository, which is where feeds such as
-/// Most viewed get their view counts. Repositories are public, so nothing is
+/// records in the viewer's own repository, which is where feeds ranked by
+/// views get their view counts. Repositories are public, so nothing is
 /// written unless the viewer has turned on sharing (Profile > Engagement).
 @MainActor
 final class WatchEventRecorder {

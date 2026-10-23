@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.engagement.like",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The repository owner likes a video. Written to the liker's own repository; deleting the record removes the like. Like other repository records it is public. Mirrors app.bsky.feed.like, scoped to OpenReel video posts.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "description": "The social.openreel.video.post that was liked, pinned to the version seen.",
+            "ref": "com.atproto.repo.strongRef"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Client-declared timestamp when the like was made.",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

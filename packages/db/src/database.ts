@@ -28,6 +28,7 @@ export interface Database {
   actor: ActorTable
   video_post: VideoPostTable
   watch_event: WatchEventTable
+  video_like: VideoLikeTable
   video_post_stats: VideoPostStatsTable
   video_media: VideoMediaTable
   sync_cursor: SyncCursorTable
@@ -83,13 +84,29 @@ export interface WatchEventTable {
   indexed_at: GeneratedTimestamp
 }
 
+/** Index of a `social.openreel.engagement.like` record. */
+export interface VideoLikeTable {
+  uri: string
+  cid: string
+  /** DID of the account whose repository holds the like. */
+  actor_did: string
+  /** AT-URI of the liked video post. Not a foreign key: the post may not be indexed yet. */
+  subject_uri: string
+  subject_cid: string | null
+  created_at: Timestamp
+  indexed_at: GeneratedTimestamp
+}
+
 /**
- * Aggregate engagement per video post, derived from `watch_event`. This is the
- * seam feed generators read from; nothing individual is stored here.
+ * Aggregate engagement per video post, derived from `watch_event` and
+ * `video_like`. This is the seam feed generators read from; nothing individual
+ * is stored here.
  */
 export interface VideoPostStatsTable {
   uri: string
   view_count: Generated<number>
+  /** Distinct accounts that like the post. */
+  like_count: Generated<number>
   avg_completion_rate: number | null
   updated_at: GeneratedTimestamp
 }

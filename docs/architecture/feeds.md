@@ -1,7 +1,7 @@
 # Feeds and ranking
 
 How OpenReel decides what a feed shows, how a new feed is configured, and
-where view counts come from. Project plan sections 4.2 and 5.5
+where view and like counts come from. Project plan sections 4.2 and 5.5
 (`docs/reference/project-plan.md`) are the background; this document describes
 what is built.
 
@@ -60,21 +60,26 @@ Each signal is normalized to 0-1 before it is weighted:
 | Signal    | Value                                                                     |
 | --------- | ------------------------------------------------------------------------- |
 | `views`   | The post's view count divided by the highest view count of any playable post |
+| `likes`   | The post's like count divided by the highest like count of any playable post |
 | `recency` | `0.5 ^ (hours since posted / halfLifeHours)`                              |
 
 Ties go to the newer post. Weighted feeds page by offset, so a post whose rank
 changes between pages can repeat or be skipped. The app drops repeats.
 
 The plan's Trending formula (`0.4 completion + 0.3 like ratio + 0.3 recency`)
-is not available yet. Likes are not indexed, and completion rate is stored
-(`video_post_stats.avg_completion_rate`) but is not a signal yet.
+is not available yet. Likes are a raw count rather than a ratio to views, and
+completion rate is stored (`video_post_stats.avg_completion_rate`) but is not
+a signal yet.
 
 ### Shipped feeds
 
-| Feed        | Ranking                             |
-| ----------- | ----------------------------------- |
-| Latest      | Chronological, every playable video |
-| Most viewed | Weighted, 100% views                |
+| Feed    | Ranking                             |
+| ------- | ----------------------------------- |
+| Latest  | Chronological, every playable video |
+| Popular | Weighted, 100% likes                |
+
+A feed ranked by views (`{ "signal": "views", "weight": 1 }`) still works; it
+is not shipped because the demo offers two feeds.
 
 ## Where views come from
 
@@ -98,10 +103,32 @@ watch events only for a signed-in viewer who has turned on **Profile >
 Engagement > Share Watch History**. It is off by default. A signed-out viewer,
 or one who has not opted in, adds no views.
 
+## Where likes come from
+
+1. Tapping the heart on a reel writes a `social.openreel.engagement.like`
+   record to the **viewer's own repository**
+   (`com.atproto.repo.createRecord`). Tapping again deletes it
+   (`com.atproto.repo.deleteRecord`). The heart updates at once and rolls back
+   if the write fails.
+2. The AppView receives the record from Jetstream and stores it in
+   `video_like`, then recounts `video_post_stats.like_count` as the number of
+   **distinct** accounts that like the post, so a second like from the same
+   account does not count twice.
+3. Feedgen reads `like_count` for the `likes` signal, and the AppView returns
+   it as `likeCount` on every post view.
+
+Which posts the viewer has liked comes from their own repository
+(`com.atproto.repo.listRecords`), not the AppView, so the app needs no
+authenticated AppView call. Until the AppView has indexed a new like, the app
+adds the viewer's own change to the count it shows.
+
+A like is an explicit, public action, so unlike watch events it needs no
+opt-in. It is visible to anyone, as likes are on Bluesky.
+
 ## Not built yet
 
 - Following and Social Discovery feeds: the follow graph is not indexed.
 - Publishing `social.openreel.feed.generator` records. Until they exist, feedgen
   describes its own feeds and does not verify a feed URI's authority.
-- Likes, and completion as a ranking signal.
+- Completion, and likes as a ratio to views, as ranking signals.
 - Personalized or opt-in feeds (plan tier 2) and third-party generators.

@@ -49,8 +49,12 @@ ${
   </section>
   <div class="side">
     <section class="panel">
-      <div class="panel-head"><h2>Most viewed</h2><span class="hint">video_post_stats</span></div>
-      <ol id="most-viewed" class="bars"></ol>
+      <div class="panel-head"><h2>Popular</h2><span class="hint">video_post_stats</span></div>
+      <ol id="popular" class="bars"></ol>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Latest likes</h2><span class="hint">video_like</span></div>
+      <ol id="likes" class="rows"></ol>
     </section>
     <section class="panel">
       <div class="panel-head"><h2>Latest watch events</h2><span class="hint">watch_event</span></div>
@@ -289,6 +293,7 @@ const SCRIPT = `
   const who = (handle, did) => handle ? '@' + handle : short(did, 22)
 
   let knownWatches = new Set()
+  let knownLikes = new Set()
   function render(snap) {
     const c = snap.counts || {}
     tile('posts', 'video posts', c.posts ?? 0)
@@ -296,17 +301,31 @@ const SCRIPT = `
     tile('queue', 'transcodes queued', (snap.media.pending ?? 0) + (snap.media.processing ?? 0))
     tile('watches', 'watch events', c.watchEvents ?? 0)
     tile('viewers', 'viewers sharing', c.viewers ?? 0)
+    tile('likes', 'likes', c.likes ?? 0)
+    tile('likers', 'accounts liking', c.likers ?? 0)
     const jet = snap.cursors.find((x) => x.name.includes('jetstream'))
     tile('lag', 'last firehose event', jet ? ago(jet.eventAt) : 'none')
 
-    const top = snap.mostViewed[0] ? Number(snap.mostViewed[0].view_count) : 0
-    $('most-viewed').replaceChildren(...(snap.mostViewed.length ? snap.mostViewed.map((r) => {
+    const top = snap.popular[0] ? Number(snap.popular[0].like_count) : 0
+    $('popular').replaceChildren(...(snap.popular.length ? snap.popular.map((r) => {
       const item = el('li', 'bar')
-      item.style.setProperty('--w', (top ? (Number(r.view_count) / top) * 100 : 0) + '%')
+      item.style.setProperty('--w', (top ? (Number(r.like_count) / top) * 100 : 0) + '%')
+      const views = ' · ' + r.view_count + (Number(r.view_count) === 1 ? ' view' : ' views')
       const completion = r.avg_completion_rate == null ? '' : ' · ' + Math.round(r.avg_completion_rate * 100) + '% avg watched'
-      item.append(el('span', 'fill'), el('span', 'n', r.view_count), el('span', '', post(r.caption, r.uri)), el('span', 'muted', ' ' + who(r.handle, '') + completion))
+      item.append(el('span', 'fill'), el('span', 'n', '♥ ' + r.like_count), el('span', '', post(r.caption, r.uri)), el('span', 'muted', ' ' + who(r.handle, '') + views + completion))
       return item
-    }) : [el('li', 'empty', 'No views yet. Turn on Share Watch History in the app and watch something.')]))
+    }) : [el('li', 'empty', 'No likes or views yet. Tap the heart on a video in the app.')]))
+
+    const freshLikes = new Set(snap.recentLikes.map((l) => l.uri))
+    $('likes').replaceChildren(...(snap.recentLikes.length ? snap.recentLikes.map((l) => {
+      const item = el('li', 'row' + (knownLikes.size && !knownLikes.has(l.uri) ? ' new' : ''))
+      item.append(
+        el('span', '', who(l.liker, l.actor_did) + ' liked ' + post(l.caption, null)),
+        el('div', 'muted', 'indexed ' + ago(l.indexed_at)),
+      )
+      return item
+    }) : [el('li', 'empty', 'None yet.')]))
+    knownLikes = freshLikes
 
     const fresh = new Set(snap.recentWatches.map((w) => w.uri))
     $('watches').replaceChildren(...(snap.recentWatches.length ? snap.recentWatches.map((w) => {

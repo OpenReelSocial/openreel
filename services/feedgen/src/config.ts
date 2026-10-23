@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 /** Signals a weighted feed can score by; see `social.openreel.feed.defs#rankingWeight`. */
-export const SIGNALS = ['views', 'recency'] as const
+export const SIGNALS = ['views', 'likes', 'recency'] as const
 export type Signal = (typeof SIGNALS)[number]
 
 export interface SignalWeight {

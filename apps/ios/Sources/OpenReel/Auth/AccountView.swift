@@ -46,7 +46,7 @@ struct AccountView: View {
                 } header: {
                     Text("Engagement")
                 } footer: {
-                    Text("Publishes a watch event to your PDS for each video you watch for at least \(WatchEventRecorder.minimumWatchMs / 1000) seconds. Anyone can read them. Feeds such as Most viewed count them as views.")
+                    Text("Publishes a watch event to your PDS for each video you watch for at least \(WatchEventRecorder.minimumWatchMs / 1000) seconds. Anyone can read them. Feeds ranked by views count them.")
                 }
 
                 Section {

@@ -39,62 +39,90 @@ export class QueryFeed {
 
 /** Everything the debug page's pipeline panels show, read in one go. */
 export async function pipelineSnapshot(db: Kysely<Database>) {
-  const [counts, media, cursors, mostViewed, recentWatches, recentJobs] = await Promise.all([
-    sql<{ actors: number; posts: number; watchEvents: number; viewers: number }>`
+  const [counts, media, cursors, popular, recentWatches, recentLikes, recentJobs] =
+    await Promise.all([
+      sql<{
+        actors: number
+        posts: number
+        watchEvents: number
+        viewers: number
+        likes: number
+        likers: number
+      }>`
       select
         (select count(*) from actor)::int as actors,
         (select count(*) from video_post)::int as "posts",
         (select count(*) from watch_event)::int as "watchEvents",
-        (select count(distinct actor_did) from watch_event)::int as viewers
+        (select count(distinct actor_did) from watch_event)::int as viewers,
+        (select count(*) from video_like)::int as likes,
+        (select count(distinct actor_did) from video_like)::int as likers
     `.execute(db),
-    db
-      .selectFrom('video_media')
-      .select(['status', (eb) => eb.fn.countAll<number>().as('count')])
-      .groupBy('status')
-      .execute(),
-    db.selectFrom('sync_cursor').select(['name', 'cursor', 'updated_at']).execute(),
-    db
-      .selectFrom('video_post_stats as s')
-      .innerJoin('video_post as p', 'p.uri', 's.uri')
-      .leftJoin('actor as a', 'a.did', 'p.author_did')
-      .select([
-        'p.uri',
-        'p.caption',
-        'a.handle',
-        's.view_count',
-        's.avg_completion_rate',
-        's.updated_at',
-      ])
-      .where('s.view_count', '>', 0)
-      .orderBy('s.view_count', 'desc')
-      .orderBy('p.sort_at', 'desc')
-      .limit(8)
-      .execute(),
-    db
-      .selectFrom('watch_event as w')
-      .leftJoin('actor as a', 'a.did', 'w.actor_did')
-      .leftJoin('video_post as p', 'p.uri', 'w.subject_uri')
-      .select([
-        'w.uri',
-        'a.handle as viewer',
-        'w.actor_did',
-        'p.caption',
-        'w.watch_duration_ms',
-        'w.completion_rate',
-        'w.rewatch_count',
-        'w.created_at',
-        'w.indexed_at',
-      ])
-      .orderBy('w.indexed_at', 'desc')
-      .limit(8)
-      .execute(),
-    db
-      .selectFrom('video_media')
-      .select(['author_did', 'video_cid', 'status', 'attempts', 'last_error', 'updated_at'])
-      .orderBy('updated_at', 'desc')
-      .limit(6)
-      .execute(),
-  ])
+      db
+        .selectFrom('video_media')
+        .select(['status', (eb) => eb.fn.countAll<number>().as('count')])
+        .groupBy('status')
+        .execute(),
+      db.selectFrom('sync_cursor').select(['name', 'cursor', 'updated_at']).execute(),
+      db
+        .selectFrom('video_post_stats as s')
+        .innerJoin('video_post as p', 'p.uri', 's.uri')
+        .leftJoin('actor as a', 'a.did', 'p.author_did')
+        .select([
+          'p.uri',
+          'p.caption',
+          'a.handle',
+          's.like_count',
+          's.view_count',
+          's.avg_completion_rate',
+          's.updated_at',
+        ])
+        .where((eb) => eb.or([eb('s.like_count', '>', 0), eb('s.view_count', '>', 0)]))
+        // The Popular feed's order: likes, then newest.
+        .orderBy('s.like_count', 'desc')
+        .orderBy('s.view_count', 'desc')
+        .orderBy('p.sort_at', 'desc')
+        .limit(8)
+        .execute(),
+      db
+        .selectFrom('watch_event as w')
+        .leftJoin('actor as a', 'a.did', 'w.actor_did')
+        .leftJoin('video_post as p', 'p.uri', 'w.subject_uri')
+        .select([
+          'w.uri',
+          'a.handle as viewer',
+          'w.actor_did',
+          'p.caption',
+          'w.watch_duration_ms',
+          'w.completion_rate',
+          'w.rewatch_count',
+          'w.created_at',
+          'w.indexed_at',
+        ])
+        .orderBy('w.indexed_at', 'desc')
+        .limit(8)
+        .execute(),
+      db
+        .selectFrom('video_like as l')
+        .leftJoin('actor as a', 'a.did', 'l.actor_did')
+        .leftJoin('video_post as p', 'p.uri', 'l.subject_uri')
+        .select([
+          'l.uri',
+          'a.handle as liker',
+          'l.actor_did',
+          'p.caption',
+          'l.created_at',
+          'l.indexed_at',
+        ])
+        .orderBy('l.indexed_at', 'desc')
+        .limit(8)
+        .execute(),
+      db
+        .selectFrom('video_media')
+        .select(['author_did', 'video_cid', 'status', 'attempts', 'last_error', 'updated_at'])
+        .orderBy('updated_at', 'desc')
+        .limit(6)
+        .execute(),
+    ])
 
   return {
     at: new Date().toISOString(),
@@ -106,8 +134,9 @@ export async function pipelineSnapshot(db: Kysely<Database>) {
       eventAt: new Date(Math.floor(row.cursor / 1000)).toISOString(),
       savedAt: row.updated_at,
     })),
-    mostViewed,
+    popular,
     recentWatches,
+    recentLikes,
     recentJobs,
   }
 }

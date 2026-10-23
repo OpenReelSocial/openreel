@@ -33,9 +33,10 @@ enum ReelAction: CaseIterable, Identifiable {
 /// Tap it to like. Touch and hold, or start sliding up, to fan the other
 /// actions out above it; slide onto one and let go to choose it, or let go
 /// anywhere else to cancel. VoiceOver gets the same actions as a list.
-/// Actions other than the local like toggle are not wired up yet.
+/// Actions other than liking are not wired up yet.
 struct ReelHeartButton: View {
-    @Binding var isLiked: Bool
+    let isLiked: Bool
+    var onToggleLike: () -> Void = {}
     var onAction: (ReelAction) -> Void = { _ in }
 
     @State private var isPressing = false
@@ -72,7 +73,7 @@ struct ReelHeartButton: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAddTraits(isLiked ? .isSelected : [])
             .accessibilityHint("Touch and hold, then slide up for more actions.")
-            .accessibilityAction { isLiked.toggle() }
+            .accessibilityAction { onToggleLike() }
             .accessibilityActions {
                 ForEach(ReelAction.allCases) { action in
                     Button(action.title) { onAction(action) }
@@ -156,7 +157,7 @@ struct ReelHeartButton: View {
                 if wasOpen {
                     if let chosen { onAction(chosen) }
                 } else if hypot(value.translation.width, value.translation.height) < Self.tapSlop {
-                    isLiked.toggle()
+                    onToggleLike()
                 }
             }
     }
