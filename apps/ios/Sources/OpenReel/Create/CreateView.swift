@@ -54,6 +54,22 @@ struct CreateView: View {
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: 380)
                     .background(Color.black)
+                    .overlay(alignment: .topLeading) {
+                        if !store.isBusy {
+                            Button {
+                                focusedField = nil
+                                store.reset()
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 32, height: 32)
+                                    .background(.black.opacity(0.5), in: Circle())
+                            }
+                            .padding(12)
+                            .accessibilityLabel("Discard this post")
+                        }
+                    }
 
                 details(video: video, caption: caption, tags: tags)
             }
