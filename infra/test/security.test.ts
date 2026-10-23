@@ -168,3 +168,80 @@ describe('media', () => {
     })
   })
 })
+
+describe('backups', () => {
+  const buckets = dev.findResources('AWS::S3::Bucket', {
+    Properties: { VersioningConfiguration: { Status: 'Enabled' } },
+  })
+  const [backupBucketId, backupBucket] = Object.entries(buckets)[0] ?? []
+
+  it('keeps a private, encrypted, versioned bucket for 30 days, even past stack deletion', () => {
+    expect(Object.keys(buckets)).toHaveLength(1)
+    expect(backupBucket).toMatchObject({
+      DeletionPolicy: 'Retain',
+      Properties: {
+        PublicAccessBlockConfiguration: {
+          BlockPublicAcls: true,
+          BlockPublicPolicy: true,
+          IgnorePublicAcls: true,
+          RestrictPublicBuckets: true,
+        },
+        BucketEncryption: {
+          ServerSideEncryptionConfiguration: [
+            { ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } },
+          ],
+        },
+        LifecycleConfiguration: {
+          Rules: [
+            expect.objectContaining({
+              ExpirationInDays: 30,
+              NoncurrentVersionExpiration: { NoncurrentDays: 30 },
+              Status: 'Enabled',
+            }),
+          ],
+        },
+      },
+    })
+  })
+
+  it('lets only the host role write, and nothing delete', () => {
+    const policies = Object.values(dev.findResources('AWS::IAM::Policy')) as {
+      Properties: {
+        Roles: unknown[]
+        PolicyDocument: { Statement: { Action: string | string[]; Resource: unknown }[] }
+      }
+    }[]
+    const touching = policies.flatMap((policy) =>
+      policy.Properties.PolicyDocument.Statement.filter((statement) =>
+        JSON.stringify(statement.Resource).includes(backupBucketId!),
+      ).map((statement) => ({ roles: policy.Properties.Roles, statement })),
+    )
+    const writes = touching.filter(({ statement }) =>
+      actionsOf(statement as never).some((action) => action.startsWith('s3:PutObject')),
+    )
+    expect(writes).not.toHaveLength(0)
+    for (const { roles } of writes) {
+      expect(JSON.stringify(roles)).toMatch(/HostRole/)
+      expect(roles).toHaveLength(1)
+    }
+    for (const { statement } of touching) {
+      for (const action of actionsOf(statement as never)) {
+        expect(action).not.toMatch(/^s3:Delete/)
+      }
+    }
+  })
+
+  it('denies requests without TLS', () => {
+    dev.hasResourceProperties('AWS::S3::BucketPolicy', {
+      Bucket: { Ref: backupBucketId },
+      PolicyDocument: {
+        Statement: [
+          Match.objectLike({
+            Effect: 'Deny',
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } },
+          }),
+        ],
+      },
+    })
+  })
+})

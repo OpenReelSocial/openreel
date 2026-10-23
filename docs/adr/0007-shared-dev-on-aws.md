@@ -88,8 +88,11 @@ iOS `Backend.aws` default; `infra/README.md` is the operating guide.
 
 ## Consequences
 
-- One host is a single point of failure and nothing is backed up. Dev data is
-  disposable, as before; accounts on the new PDS start empty.
+- One host is a single point of failure. Accounts on the new PDS started
+  empty. Since 2026-10-23 (#111), `make aws-backup` copies the PDS volume and
+  both databases to a versioned S3 bucket kept 30 days, and `make aws-restore`
+  puts them back on this or a new host; backups are taken by hand, not on a
+  schedule. `infra/README.md` covers backups and moving to another account.
 - Cost is roughly $65–80/month with the instance running (instance, 60 GB gp3,
   public IPv4, logs); stopping the instance between demos cuts most of it.
 - `PDS_HOSTNAME` becomes `dev.openreel.social` and is baked into every DID

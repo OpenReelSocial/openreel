@@ -157,6 +157,20 @@ infra-synth: ## Synthesize the AWS CDK app into infra/cdk.out (no AWS access)
 infra-diff: ## Compare the AWS CDK app with what is deployed (needs AWS_PROFILE)
 	pnpm --filter @openreel/infra run diff
 
+# Backups of the AWS host (#111): run on the host through SSM with the
+# operator's credentials (AWS_PROFILE). infra/README.md has the procedure.
+.PHONY: aws-backup
+aws-backup: ## Back up the AWS host's PDS, PLC, and AppView data to S3 (needs AWS_PROFILE)
+	infra/scripts/host-run.sh infra/aws/scripts/backup.sh \
+		BACKUP_PREFIX=dev/$$(date -u +%Y-%m-%dT%H%M%SZ)
+
+.PHONY: aws-restore
+aws-restore: ## DESTRUCTIVE: replace the AWS host's data with BACKUP=<prefix> (needs AWS_PROFILE)
+	@test -n "$(BACKUP)" || { echo "usage: make aws-restore BACKUP=dev/<timestamp>" >&2; exit 1; }
+	@read -r -p "Replace every account and post on the AWS host with $(BACKUP)? Type the prefix to confirm: " answer; \
+		test "$$answer" = "$(BACKUP)" || { echo "Not confirmed." >&2; exit 1; }
+	infra/scripts/host-run.sh infra/aws/scripts/restore.sh BACKUP_PREFIX=$(BACKUP)
+
 # Database migrations (packages/db, ADR-0003). Migrations are an explicit step,
 # not run at service or container start. DATABASE_URL is taken from the
 # environment, else .env, else derived from the POSTGRES_* values so it always
