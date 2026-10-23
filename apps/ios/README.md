@@ -24,8 +24,8 @@ environment variable.
 
 | Path | Contents |
 | --- | --- |
-| `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), and the sign-in / account UI under `Auth/` |
-| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, and the AppView `getFeed` client. No UI. See ADR-0004 |
+| `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), posting videos (`Create/`), and the sign-in / account UI under `Auth/` |
+| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, record writes and blob uploads, and the AppView `getFeed` client. No UI. See ADR-0004 |
 | `OAuth/ios-client-metadata.json` | The OAuth client-metadata document; must be hosted at `https://openreel.social/oauth/ios-client-metadata.json` for release builds |
 | `Supporting/Info.plist` | URL schemes for the OAuth redirects (release, AWS, Hetzner dev server) and the local-networking ATS exception |
 
@@ -118,6 +118,20 @@ players. Only the visible player plays. It is a pool of `AVPlayer`s rather
 than one `AVQueuePlayer` because the feed scrolls in both directions and
 items need to be preloaded out of order.
 
+## Posting a video
+
+The Create tab posts a video from the photo library to the signed-in
+account. The app checks it against the `social.openreel.video.post` Lexicon
+(a video type, at most 100 MB), reads its duration and aspect ratio with
+AVFoundation, uploads it with `com.atproto.repo.uploadBlob`, and writes the
+record with `com.atproto.repo.createRecord`. It then polls the default
+(Latest) feed until the AppView serves the post, which happens once the media
+pipeline has transcoded it to HLS: about 20 s for a short clip on the AWS
+backend. **Watch in Latest** opens the feed at the new post.
+
+In the Simulator, drag a video file onto the Simulator window (or run
+`xcrun simctl addmedia booted clip.mp4`) to add it to Photos.
+
 ## Tests
 
 The package tests run without a server or Xcode project:
@@ -130,5 +144,6 @@ swift test
 They cover identifier syntax, DID-document parsing, handle/DID resolution,
 PKCE and DPoP proof construction, authorization-server metadata validation,
 the session manager's sign-in, restore, refresh, expiry, outage, and
-sign-out paths, and `getFeed` request building and response decoding, against
+sign-out paths, record writes, video upload and `video.post` record building
+with the Lexicon's limits, and `getFeed` request building and response decoding, against
 a stubbed HTTP transport. Feed UI and playback have no automated tests yet.
