@@ -136,6 +136,18 @@ final class VideoPostTests: XCTestCase {
         }
     }
 
+    func testAcceptsOnlyTypesThePipelineTranscodes() {
+        for type in ["video/mp4", "video/x-m4v", "video/quicktime", "video/x-matroska", "video/webm", "Video/MP4"] {
+            XCTAssertNoThrow(try TranscodableVideo.validate(mimeType: type), type)
+        }
+        // Valid under the Lexicon's video/*, but the worker refuses them.
+        for type in ["video/x-msvideo", "video/3gpp", "video/mpeg", "application/octet-stream"] {
+            XCTAssertThrowsError(try TranscodableVideo.validate(mimeType: type), type) {
+                XCTAssertEqual($0 as? VideoPostError, .unsupportedType(type))
+            }
+        }
+    }
+
     func testServerErrorDuringUploadKeepsTheSessionAndSkipsTheRecord() async throws {
         let transport = StubTransport()
         let manager = try await signedIn(transport)

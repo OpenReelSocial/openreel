@@ -21,13 +21,15 @@ struct PickedVideo: Equatable {
     let preview: CGImage?
 
     /// Reads size, type, duration, and display aspect ratio. Validates
-    /// against the Lexicon's size and type limits before anything else, so an
-    /// oversized file is rejected without decoding it.
+    /// against the Lexicon's limits and the types the media pipeline
+    /// transcodes before anything else, so an oversized or unplayable file is
+    /// rejected without decoding it.
     static func load(from fileURL: URL) async throws -> PickedVideo {
         let mimeType = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let byteCount = (attributes[.size] as? NSNumber)?.intValue ?? 0
         try VideoPostLimits.validateVideo(size: byteCount, mimeType: mimeType)
+        try TranscodableVideo.validate(mimeType: mimeType)
 
         let asset = AVURLAsset(url: fileURL)
         let duration = try await asset.load(.duration)
