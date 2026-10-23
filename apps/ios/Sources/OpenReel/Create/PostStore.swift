@@ -218,7 +218,7 @@ final class PostStore {
         case .tooLarge:
             return "That video is too large. Videos can be up to \(megabytes) MB."
         case .unsupportedType:
-            return "That file isn't a video OpenReel can post."
+            return "That file isn't a video OpenReel can post. Use an MP4, MOV, MKV, or WebM video."
         case .invalidDuration:
             return "Could not read how long that video is."
         case let .captionTooLong(limit):

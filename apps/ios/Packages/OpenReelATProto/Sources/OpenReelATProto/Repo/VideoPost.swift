@@ -100,6 +100,27 @@ public enum VideoPostLimits {
     }
 }
 
+/// Video types OpenReel's media pipeline can transcode: what ffmpeg's
+/// `mov,mp4` and `matroska,webm` demuxers read, the only inputs the worker
+/// allows (`services/media/src/transcode.ts`, ADR-0006). Narrower than the
+/// Lexicon's `video/*`: a post of any other type is valid but never plays.
+public enum TranscodableVideo {
+    /// MP4 (and its `.m4v` variant), QuickTime MOV, Matroska MKV, and WebM.
+    public static let mimeTypes: Set<String> = [
+        "video/mp4", "video/x-m4v", "video/quicktime",
+        "video/x-matroska", "video/matroska", "video/webm",
+    ]
+
+    public static func accepts(mimeType: String) -> Bool {
+        mimeTypes.contains(mimeType.lowercased())
+    }
+
+    /// Throws `unsupportedType` for a video the pipeline would refuse.
+    public static func validate(mimeType: String) throws {
+        guard accepts(mimeType: mimeType) else { throw VideoPostError.unsupportedType(mimeType) }
+    }
+}
+
 extension ATProtoSessionManager {
     /// Uploads a video and publishes a `social.openreel.video.post` for it
     /// in the signed-in account's repository. Validates against the Lexicon
