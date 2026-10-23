@@ -27,7 +27,7 @@ struct CreateView: View {
                     .foregroundStyle(MonoTheme.primary)
 
                 switch store.phase {
-                case let .processing(uri), let .slowProcessing(uri), let .posted(uri, _):
+                case let .processing(uri), let .slowProcessing(uri), let .posted(uri):
                     progressCard(uri: uri)
                 default:
                     form(caption: $store.caption, tags: $store.tagsText)
@@ -180,11 +180,9 @@ struct CreateView: View {
     private func progressCard(uri: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             switch store.phase {
-            case let .posted(_, seconds):
+            case .posted:
                 Label("Your video is live", systemImage: "checkmark.circle.fill")
                     .font(.headline)
-                Text("Ready \(seconds) s after posting.")
-                    .foregroundStyle(MonoTheme.secondary)
                 Button {
                     onShowPost(uri)
                 } label: {

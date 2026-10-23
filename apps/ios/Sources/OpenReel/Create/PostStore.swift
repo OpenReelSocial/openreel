@@ -23,8 +23,8 @@ final class PostStore {
         case uploading(Double)
         /// The record is written; waiting for the post to show up in the feed.
         case processing(uri: String)
-        /// The post plays in the feed, `seconds` after the user tapped Post.
-        case posted(uri: String, seconds: Int)
+        /// The post plays in the feed.
+        case posted(uri: String)
         /// Not in the feed after `processingTimeout`; it may still appear.
         case slowProcessing(uri: String)
     }
@@ -182,7 +182,7 @@ final class PostStore {
                 guard phase == .processing(uri: uri) else { return }
                 let seconds = Int(Date().timeIntervalSince(started).rounded())
                 print("[post] \(uri) playable \(seconds)s after posting")
-                phase = .posted(uri: uri, seconds: seconds)
+                phase = .posted(uri: uri)
                 return
             }
         }
