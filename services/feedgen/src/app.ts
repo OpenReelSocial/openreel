@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { traceRequests, type Database } from '@openreel/db'
 import { ids, lexicons, type SocialOpenreelFeedDefs } from '@openreel/lexicons'
 import { createServiceApp } from '@openreel/service-core'
 import type { Express, Request, Response } from 'express'
@@ -63,6 +63,7 @@ export function generatorView(
 /** Builds the feed generator: ranked post URIs only; the AppView hydrates them. */
 export function createApp(deps: FeedgenDeps): Express {
   const app = createServiceApp(SERVICE_NAME)
+  app.use(traceRequests())
   const feeds = buildFeeds(deps.feeds)
   const views = deps.feeds.map((def) => generatorView(def, deps.publisher))
 

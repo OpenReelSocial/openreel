@@ -1,3 +1,4 @@
+import { traceHeaders, traceStep } from '@openreel/db'
 import type { SocialOpenreelFeedDefs, SocialOpenreelFeedGetFeedSkeleton } from '@openreel/lexicons'
 
 /** An XRPC error from the feed generator, relayed to the AppView's caller. */
@@ -29,8 +30,19 @@ export class HttpSkeletonSource implements SkeletonSource {
   }
 
   async describeFeeds(): Promise<SocialOpenreelFeedDefs.GeneratorView[]> {
-    const url = `${this.#baseUrl}/xrpc/social.openreel.feed.describeFeedGenerator`
-    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) })
+    const path = '/xrpc/social.openreel.feed.describeFeedGenerator'
+    const res = await traceStep(
+      'Describe feed generator',
+      { kind: 'call', target: 'feedgen', method: 'GET', path },
+      async (note) => {
+        const res = await fetch(`${this.#baseUrl}${path}`, {
+          headers: traceHeaders(),
+          signal: AbortSignal.timeout(5_000),
+        })
+        note({ status: res.status })
+        return res
+      },
+    )
     if (!res.ok) {
       throw new SkeletonError(502, 'UpstreamFailure', `feed generator returned HTTP ${res.status}`)
     }
@@ -46,7 +58,18 @@ export class HttpSkeletonSource implements SkeletonSource {
     if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit))
     if (params.cursor !== undefined) url.searchParams.set('cursor', params.cursor)
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) })
+    const res = await traceStep(
+      'Fetch feed skeleton from feed generator',
+      { kind: 'call', target: 'feedgen', method: 'GET', path: url.pathname + url.search },
+      async (note) => {
+        const res = await fetch(url, {
+          headers: traceHeaders(),
+          signal: AbortSignal.timeout(5_000),
+        })
+        note({ status: res.status })
+        return res
+      },
+    )
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
       // Client errors (UnknownFeed, bad cursor) pass through; anything else is

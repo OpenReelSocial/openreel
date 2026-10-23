@@ -1,8 +1,8 @@
-import type { Database } from '@openreel/db'
+import { purpose, traceRoot, type Database } from '@openreel/db'
 import type { Kysely } from 'kysely'
 import WebSocket, { type RawData } from 'ws'
 
-import { parseEvent } from './events.ts'
+import { parseEvent, type JetstreamEvent } from './events.ts'
 import type { Indexer } from './indexer.ts'
 
 const RECONNECT_DELAY_MS = 1_000
@@ -13,6 +13,24 @@ function decode(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
   if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data)).toString('utf8')
   return data.toString('utf8')
+}
+
+/** How the system map shows an event: what changed, and how long it took to reach us. */
+function traceFields(event: JetstreamEvent) {
+  const relayMs = Math.max(0, Math.round(Date.now() - event.time_us / 1000))
+  if (event.kind !== 'commit') {
+    return { kind: 'firehose', event: event.kind, did: event.did, relayMs } as const
+  }
+  const { operation, collection, rkey } = event.commit
+  return {
+    kind: 'firehose',
+    event: 'commit',
+    did: event.did,
+    op: operation,
+    collection,
+    uri: `at://${event.did}/${collection}/${rkey}`,
+    relayMs,
+  } as const
 }
 
 /**
@@ -60,11 +78,13 @@ export class JetstreamSubscription {
   async start(): Promise<void> {
     if (!this.#stopped) return
     this.#stopped = false
-    const row = await this.#db
-      .selectFrom('sync_cursor')
-      .select('cursor')
-      .where('name', '=', CURSOR_NAME)
-      .executeTakeFirst()
+    const row = await purpose('Load Jetstream cursor', () =>
+      this.#db
+        .selectFrom('sync_cursor')
+        .select('cursor')
+        .where('name', '=', CURSOR_NAME)
+        .executeTakeFirst(),
+    )
     this.#cursor = row?.cursor
     this.#savedCursor = row?.cursor
     this.#flushTimer = setInterval(() => void this.#flush(), CURSOR_FLUSH_MS)
@@ -92,7 +112,7 @@ export class JetstreamSubscription {
       if (event === undefined) return
       this.#queue = this.#queue.then(async () => {
         try {
-          await this.#indexer.handle(event)
+          await traceRoot(traceFields(event), () => this.#indexer.handle(event))
         } catch (error) {
           // Skip rather than wedge the stream on one bad event; it is logged
           // and a replay (or the next edit of the record) can fix it.
@@ -117,11 +137,13 @@ export class JetstreamSubscription {
     const cursor = this.#cursor
     if (cursor === undefined || cursor === this.#savedCursor) return
     try {
-      await this.#db
-        .insertInto('sync_cursor')
-        .values({ name: CURSOR_NAME, cursor })
-        .onConflict((oc) => oc.column('name').doUpdateSet({ cursor, updated_at: new Date() }))
-        .execute()
+      await purpose('Persist Jetstream cursor', () =>
+        this.#db
+          .insertInto('sync_cursor')
+          .values({ name: CURSOR_NAME, cursor })
+          .onConflict((oc) => oc.column('name').doUpdateSet({ cursor, updated_at: new Date() }))
+          .execute(),
+      )
       this.#savedCursor = cursor
     } catch (error) {
       console.error('[appview] failed to save Jetstream cursor:', error)

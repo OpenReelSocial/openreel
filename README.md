@@ -18,11 +18,12 @@ make check       # pre-PR gate: format, lint, typecheck, test
 make down        # stop everything, keep volumes
 ```
 
-**Debug portal:** http://localhost:3003/debug shows every SQL statement the
-AppView, feed generator, and media worker run, live, next to the pipeline's
-state (view leaderboard, latest watch events, transcode jobs). Services report
-queries over Postgres `NOTIFY` when `DEBUG_QUERY_TAP=1`, which the local
-Compose stack sets by default; set it to `0` in `.env` to turn it off.
+**Debug system map:** http://localhost:3003/debug draws the servers and
+replays each request, firehose event, and transcode job live: every call
+between services and every query, labelled with its purpose, the tables it
+reads or writes, and its row count. Services report traces over Postgres
+`NOTIFY` when `DEBUG_QUERY_TAP=1`, which the local Compose stack sets by
+default; set it to `0` in `.env` to turn it off.
 
 `make up` also generates local PDS secrets into the git-ignored
 `infra/pds/.env`. If a local Postgres or Redis already owns port 5432 or 6379,

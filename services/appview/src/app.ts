@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { traceRequests, type Database } from '@openreel/db'
 import { ids, lexicons } from '@openreel/lexicons'
 import { createServiceApp } from '@openreel/service-core'
 import type { Express, Request, Response } from 'express'
@@ -35,6 +35,7 @@ function readParams(req: Request): Record<string, unknown> {
 /** Builds the AppView application: firehose-indexed reads over XRPC. */
 export function createApp(deps: AppViewDeps): Express {
   const app = createServiceApp(SERVICE_NAME)
+  app.use(traceRequests())
 
   app.get(`/xrpc/${ids.SocialOpenreelFeedGetFeed}`, async (req: Request, res: Response) => {
     let params: { feed?: string; limit?: number; cursor?: string }

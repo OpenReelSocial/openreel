@@ -1,8 +1,8 @@
-import { createDb, listenToQueryTap } from '@openreel/db'
+import { createDb, listenToTrace } from '@openreel/db'
 import { serve } from '@openreel/service-core'
 
 import { createApp, DEFAULT_PORT, SERVICE_NAME, type DebugDeps } from './app.ts'
-import { QueryFeed } from './debug.ts'
+import { handleLookup, TraceFeed } from './debug.ts'
 import { resolveTargets } from './targets.ts'
 
 const RETRY_MS = 5_000
@@ -13,7 +13,8 @@ const RETRY_MS = 5_000
  */
 function debugDeps(databaseUrl: string | undefined): DebugDeps | undefined {
   if (databaseUrl === undefined || databaseUrl.trim() === '') return undefined
-  const queries = new QueryFeed()
+  const db = createDb(databaseUrl)
+  const traces = new TraceFeed(handleLookup(db))
 
   let retryPending = false
   const retry = (): void => {
@@ -26,26 +27,26 @@ function debugDeps(databaseUrl: string | undefined): DebugDeps | undefined {
   }
 
   const listen = (): void => {
-    listenToQueryTap(
+    listenToTrace(
       databaseUrl,
-      (query) => queries.push(query),
+      (event) => traces.push(event),
       (error) => {
-        console.error(`[admin] query tap lost: ${error.message}; retrying`)
+        console.error(`[admin] trace listener lost: ${error.message}; retrying`)
         retry()
       },
     )
       .then(() => {
-        console.log('[admin] listening to the query tap')
+        console.log('[admin] listening for trace events')
       })
       .catch((error: Error) => {
-        console.error(`[admin] cannot listen to the query tap: ${error.message}; retrying`)
+        console.error(`[admin] cannot listen for trace events: ${error.message}; retrying`)
         retry()
       })
   }
   listen()
 
   const password = process.env['DEBUG_PASSWORD']?.trim()
-  return { db: createDb(databaseUrl), queries, ...(password ? { password } : {}) }
+  return { db, traces, ...(password ? { password } : {}) }
 }
 
 serve(

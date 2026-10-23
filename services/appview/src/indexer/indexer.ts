@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { purpose, traceStep, type Database } from '@openreel/db'
 import type { AtprotoIdentity } from '@openreel/service-core'
 import { sql, type Kysely } from 'kysely'
 
@@ -52,7 +52,9 @@ export class Indexer {
     const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
 
     if (event.commit.operation === 'delete') {
-      await this.#db.deleteFrom('video_post').where('uri', '=', uri).execute()
+      await purpose('Delete video post', () =>
+        this.#db.deleteFrom('video_post').where('uri', '=', uri).execute(),
+      )
       return
     }
 
@@ -78,18 +80,22 @@ export class Indexer {
     }
 
     await this.#db.transaction().execute(async (tx) => {
-      await tx
-        .insertInto('video_post')
-        .values({ uri, author_did: event.did, sort_at: sortAt, ...columns })
-        // An edit keeps its original feed position.
-        .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
-        .execute()
+      await purpose('Upsert video post', () =>
+        tx
+          .insertInto('video_post')
+          .values({ uri, author_did: event.did, sort_at: sortAt, ...columns })
+          // An edit keeps its original feed position.
+          .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+          .execute(),
+      )
       // Queue the blob for transcoding unless it already has renditions.
-      await tx
-        .insertInto('video_media')
-        .values({ author_did: event.did, video_cid: fields.videoCid })
-        .onConflict((oc) => oc.columns(['author_did', 'video_cid']).doNothing())
-        .execute()
+      await purpose('Enqueue transcode job', () =>
+        tx
+          .insertInto('video_media')
+          .values({ author_did: event.did, video_cid: fields.videoCid })
+          .onConflict((oc) => oc.columns(['author_did', 'video_cid']).doNothing())
+          .execute(),
+      )
       // Watch events and likes can be indexed before their post; count them now.
       await refreshStats(tx, [uri])
     })
@@ -100,11 +106,9 @@ export class Indexer {
 
     if (event.commit.operation === 'delete') {
       await this.#db.transaction().execute(async (tx) => {
-        const deleted = await tx
-          .deleteFrom('watch_event')
-          .where('uri', '=', uri)
-          .returning('subject_uri')
-          .execute()
+        const deleted = await purpose('Delete watch event', () =>
+          tx.deleteFrom('watch_event').where('uri', '=', uri).returning('subject_uri').execute(),
+        )
         await refreshStats(
           tx,
           deleted.map((row) => row.subject_uri),
@@ -133,16 +137,20 @@ export class Indexer {
 
     await this.#db.transaction().execute(async (tx) => {
       // An edit could point the event at another post; recount the old one too.
-      const previous = await tx
-        .selectFrom('watch_event')
-        .select('subject_uri')
-        .where('uri', '=', uri)
-        .executeTakeFirst()
-      await tx
-        .insertInto('watch_event')
-        .values({ uri, actor_did: event.did, ...columns })
-        .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
-        .execute()
+      const previous = await purpose('Fetch previous version of watch event', () =>
+        tx
+          .selectFrom('watch_event')
+          .select('subject_uri')
+          .where('uri', '=', uri)
+          .executeTakeFirst(),
+      )
+      await purpose('Upsert watch event', () =>
+        tx
+          .insertInto('watch_event')
+          .values({ uri, actor_did: event.did, ...columns })
+          .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+          .execute(),
+      )
       await refreshStats(tx, [fields.subjectUri, ...(previous ? [previous.subject_uri] : [])])
     })
   }
@@ -152,11 +160,9 @@ export class Indexer {
 
     if (event.commit.operation === 'delete') {
       await this.#db.transaction().execute(async (tx) => {
-        const deleted = await tx
-          .deleteFrom('video_like')
-          .where('uri', '=', uri)
-          .returning('subject_uri')
-          .execute()
+        const deleted = await purpose('Delete like', () =>
+          tx.deleteFrom('video_like').where('uri', '=', uri).returning('subject_uri').execute(),
+        )
         await refreshStats(
           tx,
           deleted.map((row) => row.subject_uri),
@@ -181,71 +187,80 @@ export class Indexer {
 
     await this.#db.transaction().execute(async (tx) => {
       // An edit could point the like at another post; recount the old one too.
-      const previous = await tx
-        .selectFrom('video_like')
-        .select('subject_uri')
-        .where('uri', '=', uri)
-        .executeTakeFirst()
-      await tx
-        .insertInto('video_like')
-        .values({ uri, actor_did: event.did, ...columns })
-        .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
-        .execute()
+      const previous = await purpose('Fetch previous version of like', () =>
+        tx.selectFrom('video_like').select('subject_uri').where('uri', '=', uri).executeTakeFirst(),
+      )
+      await purpose('Upsert like', () =>
+        tx
+          .insertInto('video_like')
+          .values({ uri, actor_did: event.did, ...columns })
+          .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+          .execute(),
+      )
       await refreshStats(tx, [fields.subjectUri, ...(previous ? [previous.subject_uri] : [])])
     })
   }
 
   async #identityChanged(event: IdentityEvent): Promise<void> {
     const handle = event.identity.handle ?? (await this.#resolveHandle(event.did))
-    await this.#db
-      .insertInto('actor')
-      .values({ did: event.did, handle })
-      .onConflict((oc) => oc.column('did').doUpdateSet({ handle }))
-      .execute()
+    await purpose('Update actor handle', () =>
+      this.#db
+        .insertInto('actor')
+        .values({ did: event.did, handle })
+        .onConflict((oc) => oc.column('did').doUpdateSet({ handle }))
+        .execute(),
+    )
   }
 
   async #accountChanged(event: AccountEvent): Promise<void> {
     const { active, status } = event.account
     if (active || status === undefined || !REMOVED_STATUSES.has(status)) return
-    await this.#db.transaction().execute(async (tx) => {
-      await tx.deleteFrom('video_post').where('author_did', '=', event.did).execute()
-      const watched = await tx
-        .deleteFrom('watch_event')
-        .where('actor_did', '=', event.did)
-        .returning('subject_uri')
-        .execute()
-      const liked = await tx
-        .deleteFrom('video_like')
-        .where('actor_did', '=', event.did)
-        .returning('subject_uri')
-        .execute()
-      await refreshStats(
-        tx,
-        [...watched, ...liked].map((row) => row.subject_uri),
-      )
-    })
+    await purpose('Purge content of removed account', () =>
+      this.#db.transaction().execute(async (tx) => {
+        await tx.deleteFrom('video_post').where('author_did', '=', event.did).execute()
+        const watched = await tx
+          .deleteFrom('watch_event')
+          .where('actor_did', '=', event.did)
+          .returning('subject_uri')
+          .execute()
+        const liked = await tx
+          .deleteFrom('video_like')
+          .where('actor_did', '=', event.did)
+          .returning('subject_uri')
+          .execute()
+        await refreshStats(
+          tx,
+          [...watched, ...liked].map((row) => row.subject_uri),
+        )
+      }),
+    )
   }
 
   /** Inserts an actor row the first time a DID is seen, resolving its handle. */
   async #ensureActor(did: string): Promise<void> {
-    const existing = await this.#db
-      .selectFrom('actor')
-      .select('did')
-      .where('did', '=', did)
-      .executeTakeFirst()
+    const existing = await purpose('Look up actor by DID', () =>
+      this.#db.selectFrom('actor').select('did').where('did', '=', did).executeTakeFirst(),
+    )
     if (existing !== undefined) return
 
     const handle = await this.#resolveHandle(did)
-    await this.#db
-      .insertInto('actor')
-      .values({ did, handle })
-      .onConflict((oc) => oc.column('did').doNothing())
-      .execute()
+    await purpose('Insert new actor', () =>
+      this.#db
+        .insertInto('actor')
+        .values({ did, handle })
+        .onConflict((oc) => oc.column('did').doNothing())
+        .execute(),
+    )
   }
 
   async #resolveHandle(did: string): Promise<string | null> {
     try {
-      return (await this.#identity.resolve(did)).handle ?? null
+      const identity = await traceStep(
+        'Resolve DID document via PLC',
+        { kind: 'call', target: 'plc', method: 'GET', path: `/${did}` },
+        () => this.#identity.resolve(did),
+      )
+      return identity.handle ?? null
     } catch (error) {
       // Index the content anyway; a later identity event fills the handle in.
       console.warn(`[appview] could not resolve ${did}: ${(error as Error).message}`)
@@ -264,7 +279,7 @@ export class Indexer {
 async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void> {
   const unique = [...new Set(uris)]
   if (unique.length === 0) return
-  await db
+  const query = db
     .insertInto('video_post_stats')
     .columns(['uri', 'view_count', 'avg_completion_rate', 'like_count', 'updated_at'])
     .expression(
@@ -303,5 +318,5 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
         updated_at: eb.ref('excluded.updated_at'),
       })),
     )
-    .execute()
+  await purpose('Recompute post stats (views, likes)', () => query.execute())
 }

@@ -8,6 +8,8 @@ import { join } from 'node:path'
  * through CloudFront (ADR-0007).
  */
 export interface MediaStore {
+  /** Where renditions end up, as the debug system map labels it. */
+  readonly name: 's3' | 'disk'
   /** Gives the worker a scratch directory to build renditions in. */
   workDir(): Promise<string>
   /** Publishes a finished scratch directory under its key, replacing any old copy. */
@@ -29,6 +31,7 @@ export function keyPath(root: string, did: string, cid: string): string {
 }
 
 export class FileMediaStore implements MediaStore {
+  readonly name = 'disk'
   readonly #root: string
 
   constructor(root: string) {

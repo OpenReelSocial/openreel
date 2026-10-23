@@ -190,14 +190,14 @@ aws ssm start-session --target <InstanceId> \
 aws logs tail /openreel/dev/containers --follow --log-stream-name-prefix openreel-appview
 ```
 
-**Debug portal:** https://dev.openreel.social/debug shows every SQL statement
-live, with the pipeline's state. It has no password; only `/debug` is public,
+**Debug system map:** https://dev.openreel.social/debug replays each request,
+firehose event, and transcode job live, with every call and query it made. It has no password; only `/debug` is public,
 and the rest of the admin service stays on loopback. To require one, set
 `DEBUG_PASSWORD` on the admin service in `dev-server/compose.yaml` (Basic auth,
 user `admin`).
 
-The services report each query to the debug portal (`DEBUG_QUERY_TAP`, on by
-default; it costs one extra Postgres round trip per query). To turn it off,
+The services report traces to the debug system map (`DEBUG_QUERY_TAP`, on by
+default; it costs one extra Postgres round trip per query or call). To turn it off,
 add a `DEBUG_QUERY_TAP` parameter with value `0` under the Parameter Store path
 and redeploy: `deploy.sh` copies every parameter there into `.env`.
 
