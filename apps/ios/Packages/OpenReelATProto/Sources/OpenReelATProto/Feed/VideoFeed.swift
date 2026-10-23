@@ -78,13 +78,24 @@ public struct VideoAuthorView: Decodable, Sendable, Equatable {
 }
 
 /// `social.openreel.video.post#aspectRatio`. Only the ratio is meaningful.
-public struct VideoAspectRatio: Decodable, Sendable, Equatable {
+public struct VideoAspectRatio: Codable, Sendable, Equatable {
     public let width: Int
     public let height: Int
 
     public init(width: Int, height: Int) {
         self.width = width
         self.height = height
+    }
+
+    /// The ratio of a display size in pixels, in lowest terms (1080×1920 is
+    /// 9:16), or `nil` if either side rounds to less than one pixel.
+    public init?(displayWidth: Double, displayHeight: Double) {
+        let width = Int(displayWidth.magnitude.rounded())
+        let height = Int(displayHeight.magnitude.rounded())
+        guard width > 0, height > 0 else { return nil }
+        var (a, b) = (width, height)
+        while b != 0 { (a, b) = (b, a % b) }
+        self.init(width: width / a, height: height / a)
     }
 
     /// Width over height, or `nil` for a ratio with a non-positive side.

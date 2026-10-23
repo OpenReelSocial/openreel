@@ -39,6 +39,13 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
         return try match.handler(request)
     }
 
+    /// Reports the whole body as sent once the request is answered.
+    func send(_ request: URLRequest, uploadProgress: UploadProgressHandler?) async throws -> HTTPResponse {
+        let response = try await send(request)
+        uploadProgress?(1)
+        return response
+    }
+
     func requests(matching prefix: String) -> [URLRequest] {
         lock.withLock { requests.filter { ($0.url?.absoluteString ?? "").hasPrefix(prefix) } }
     }

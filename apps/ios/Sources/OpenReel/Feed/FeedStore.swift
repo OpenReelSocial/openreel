@@ -29,6 +29,9 @@ final class FeedStore {
     private(set) var reels: [Reel] = []
     /// Set when refreshing or paging fails while reels are already on screen.
     private(set) var pagingError: String?
+    /// A reel the view should scroll to, such as a video the viewer just
+    /// posted; cleared with `didReveal()`.
+    private(set) var revealedReelID: String?
 
     @ObservationIgnored private var cursor: String?
     @ObservationIgnored private var isLoadingMore = false
@@ -71,6 +74,26 @@ final class FeedStore {
         pagingError = nil
         phase = .loading
         await refresh()
+    }
+
+    /// Switches to the default feed (Latest, newest first), reloads it, and
+    /// asks the view to scroll to `reelID` if it is there.
+    func showDefaultFeed(revealing reelID: String) async {
+        if let defaultFeed = feeds.first, defaultFeed.uri != selectedFeedURI {
+            selectedFeedURI = defaultFeed.uri
+            reels = []
+            cursor = nil
+            pagingError = nil
+            phase = .loading
+        }
+        await refresh()
+        if reels.contains(where: { $0.id == reelID }) {
+            revealedReelID = reelID
+        }
+    }
+
+    func didReveal() {
+        revealedReelID = nil
     }
 
     /// Replaces the feed with its first page. On failure the current reels

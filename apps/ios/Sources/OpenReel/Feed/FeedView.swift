@@ -150,6 +150,11 @@ struct FeedView: View {
         .onAppear(perform: focusVisibleReel)
         .onChange(of: visibleReelID) { _, _ in focusVisibleReel() }
         .onChange(of: store.reels) { _, _ in focusVisibleReel() }
+        .onChange(of: store.revealedReelID, initial: true) { _, id in
+            guard let id else { return }
+            visibleReelID = id
+            store.didReveal()
+        }
     }
 
     /// The scroll view leaves the hierarchy while the new feed loads, so the

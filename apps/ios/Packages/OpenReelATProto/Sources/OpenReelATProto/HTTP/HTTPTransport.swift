@@ -32,10 +32,23 @@ public struct HTTPResponse: Sendable, Equatable {
     }
 }
 
+/// Fraction of a request body sent so far, from 0 to 1.
+public typealias UploadProgressHandler = @Sendable (Double) -> Void
+
 /// The single seam between this package and the network. Tests substitute a
 /// stub; the app uses `URLSessionTransport`.
 public protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> HTTPResponse
+    /// Sends `request`, reporting how much of its body has gone out. Only
+    /// worth it for large bodies such as blob uploads.
+    func send(_ request: URLRequest, uploadProgress: UploadProgressHandler?) async throws -> HTTPResponse
+}
+
+extension HTTPTransport {
+    /// Transports that cannot report progress just send.
+    public func send(_ request: URLRequest, uploadProgress: UploadProgressHandler?) async throws -> HTTPResponse {
+        try await send(request)
+    }
 }
 
 public struct URLSessionTransport: HTTPTransport {
@@ -46,10 +59,22 @@ public struct URLSessionTransport: HTTPTransport {
     }
 
     public func send(_ request: URLRequest) async throws -> HTTPResponse {
+        try await send(request, uploadProgress: nil)
+    }
+
+    public func send(_ request: URLRequest, uploadProgress: UploadProgressHandler?) async throws -> HTTPResponse {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            if let uploadProgress, let body = request.httpBody {
+                var bodiless = request
+                bodiless.httpBody = nil
+                (data, response) = try await session.upload(
+                    for: bodiless, from: body, delegate: UploadProgressDelegate(handler: uploadProgress)
+                )
+            } else {
+                (data, response) = try await session.data(for: request)
+            }
         } catch let error as URLError {
             throw ATProtoError.serverUnavailable(.from(error, host: request.url?.hostName))
         }
@@ -66,13 +91,28 @@ public struct URLSessionTransport: HTTPTransport {
     }
 }
 
+/// Per-task delegate forwarding `didSendBodyData` to a progress handler.
+private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    let handler: UploadProgressHandler
+
+    init(handler: @escaping UploadProgressHandler) {
+        self.handler = handler
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+                    totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        handler(min(1, Double(totalBytesSent) / Double(totalBytesExpectedToSend)))
+    }
+}
+
 /// Thin wrapper that turns 5xx answers into `serverUnavailable` so callers only
 /// ever reason about 2xx/4xx.
 struct HTTPClient: Sendable {
     let transport: any HTTPTransport
 
-    func send(_ request: URLRequest) async throws -> HTTPResponse {
-        let response = try await transport.send(request)
+    func send(_ request: URLRequest, uploadProgress: UploadProgressHandler? = nil) async throws -> HTTPResponse {
+        let response = try await transport.send(request, uploadProgress: uploadProgress)
         if response.statusCode >= 500 {
             throw ATProtoError.serverUnavailable(
                 .serverError(host: request.url?.hostName ?? "unknown host", status: response.statusCode)

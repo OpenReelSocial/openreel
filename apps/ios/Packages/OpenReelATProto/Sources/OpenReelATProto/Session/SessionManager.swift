@@ -258,22 +258,23 @@ public actor ATProtoSessionManager {
     /// Sends `request` with the session's DPoP-bound access token, refreshing
     /// first if it is about to expire. Handles the two retry cases the spec
     /// requires: a nonce rotation (`use_dpop_nonce`) and a token the server
-    /// rejects early (401), each retried once.
-    public func authorizedSend(_ request: URLRequest) async throws -> HTTPResponse {
+    /// rejects early (401), each retried once. A retry sends the body again,
+    /// so `uploadProgress` can start over from zero.
+    public func authorizedSend(_ request: URLRequest, uploadProgress: UploadProgressHandler? = nil) async throws -> HTTPResponse {
         guard var current = session else { throw ATProtoError.notSignedIn }
         if current.needsRefresh(at: now()) {
             current = try await refreshSession()
         }
-        var response = try await sendWithProof(request, session: current)
+        var response = try await sendWithProof(request, session: current, uploadProgress: uploadProgress)
         if DPoPResponse.requiresNewNonce(response) {
-            response = try await sendWithProof(request, session: current)
+            response = try await sendWithProof(request, session: current, uploadProgress: uploadProgress)
         }
         guard response.statusCode == 401 else { return response }
 
         let refreshed = try await refreshSession()
-        response = try await sendWithProof(request, session: refreshed)
+        response = try await sendWithProof(request, session: refreshed, uploadProgress: uploadProgress)
         if DPoPResponse.requiresNewNonce(response) {
-            response = try await sendWithProof(request, session: refreshed)
+            response = try await sendWithProof(request, session: refreshed, uploadProgress: uploadProgress)
         }
         if response.statusCode == 401 {
             invalidateSession()
@@ -296,7 +297,8 @@ public actor ATProtoSessionManager {
 
     // MARK: - Private
 
-    private func sendWithProof(_ request: URLRequest, session: OAuthSession) async throws -> HTTPResponse {
+    private func sendWithProof(_ request: URLRequest, session: OAuthSession,
+                               uploadProgress: UploadProgressHandler?) async throws -> HTTPResponse {
         guard let url = request.url else { throw ATProtoError.invalidResponse("request has no URL") }
         let originKey = url.origin ?? url.absoluteString
         let proofs = DPoPProofGenerator(key: try keyFactory.key(from: session.dpopKey))
@@ -309,7 +311,7 @@ public actor ATProtoSessionManager {
             ),
             forHTTPHeaderField: "DPoP"
         )
-        let response = try await http.send(request)
+        let response = try await http.send(request, uploadProgress: uploadProgress)
         if let nonce = DPoPResponse.nonce(response) {
             resourceNonces[originKey] = nonce
         }
