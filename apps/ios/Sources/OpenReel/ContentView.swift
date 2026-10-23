@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var auth: AuthController
     @State private var likes: LikeStore
+    @State private var posts: PostStore
     @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
     @State private var playback = FeedPlaybackController()
     @State private var selectedTab = AppTab.home
@@ -13,6 +14,7 @@ struct ContentView: View {
         let auth = AuthController()
         _auth = State(initialValue: auth)
         _likes = State(initialValue: LikeStore(auth: auth))
+        _posts = State(initialValue: PostStore(auth: auth, appView: AppViewClient(serviceURL: Backend.current.appViewURL)))
     }
 
     var body: some View {
@@ -50,9 +52,14 @@ struct ContentView: View {
             switch tab {
             case .home:
                 FeedView(store: feed, playback: playback, likes: likes)
+            case .create:
+                CreateView(store: posts, auth: auth) { uri in
+                    selectedTab = .home
+                    Task { await feed.showDefaultFeed(revealing: uri) }
+                }
             case .profile:
                 profile
-            case .discover, .create, .inbox:
+            case .discover, .inbox:
                 PlaceholderTabView(tab: tab)
             }
         }
