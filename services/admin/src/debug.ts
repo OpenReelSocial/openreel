@@ -11,33 +11,16 @@ export interface Trace {
   handle?: string
 }
 
-/** Repeated work outside any trace, such as polling, counted rather than drawn. */
-export interface Background {
-  service: string
-  label: string
-  count: number
-}
-
-export type DebugMessage =
-  | { type: 'trace'; trace: Trace }
-  /** Ends the backlog: traces after this are happening now. */
-  | { type: 'ready' }
-  | ({ type: 'background' } & Background)
+export type DebugMessage = { type: 'trace'; trace: Trace }
 
 interface OpenTrace {
   events: TraceEvent[]
   timer?: NodeJS.Timeout
 }
 
-function backgroundLabel(event: TraceEvent): string {
-  if (event.purpose !== undefined) return event.purpose
-  if (event.kind === 'sql') return `${event.op} ${event.writes ?? event.reads.join(', ')}`
-  return event.kind
-}
-
 /**
  * Assembles trace events into traces and fans them out to every open debug
- * page, keeping the most recent so a page opened mid-demo has context.
+ * page. Nothing is kept: a page sees only what finishes after it connects.
  *
  * Services announce a trace's root (the request, firehose event, or job) when
  * it finishes, after everything it did. Events from different services can
@@ -45,12 +28,9 @@ function backgroundLabel(event: TraceEvent): string {
  * after its root arrives.
  */
 export class TraceFeed {
-  static readonly BACKLOG = 40
   static readonly MAX_OPEN = 500
 
   readonly #open = new Map<string, OpenTrace>()
-  readonly #backlog: Trace[] = []
-  readonly #background = new Map<string, Background>()
   readonly #subscribers = new Set<(message: DebugMessage) => void>()
   readonly #handleOf: (did: string) => Promise<string | undefined>
   readonly #graceMs: number
@@ -64,10 +44,8 @@ export class TraceFeed {
   }
 
   push(event: TraceEvent): void {
-    if (event.trace === undefined) {
-      this.#countBackground(event)
-      return
-    }
+    // Work outside any trace, such as queue polling, is not shown.
+    if (event.trace === undefined) return
     let open = this.#open.get(event.trace)
     if (open === undefined) {
       // A root that never arrives (a crashed request) must not hold memory forever.
@@ -98,29 +76,14 @@ export class TraceFeed {
     const handle = did === undefined ? undefined : await this.#handleOf(did).catch(() => undefined)
     const trace: Trace = { id, events, ...(handle === undefined ? {} : { handle }) }
 
-    this.#backlog.push(trace)
-    if (this.#backlog.length > TraceFeed.BACKLOG) this.#backlog.shift()
     this.#send({ type: 'trace', trace })
-  }
-
-  #countBackground(event: TraceEvent): void {
-    const label = backgroundLabel(event)
-    const key = `${event.service}\u0000${label}`
-    const entry = this.#background.get(key) ?? { service: event.service, label, count: 0 }
-    entry.count += 1
-    this.#background.set(key, entry)
-    this.#send({ type: 'background', ...entry })
   }
 
   #send(message: DebugMessage): void {
     for (const subscriber of this.#subscribers) subscriber(message)
   }
 
-  /**
-   * Streams background counts and the backlog, marks the end of the backlog
-   * so the page can tell old traces from new, then sends everything new, as
-   * server-sent events.
-   */
+  /** Streams everything from now on as server-sent events. */
   stream(res: Response): void {
     res.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -128,9 +91,6 @@ export class TraceFeed {
       connection: 'keep-alive',
     })
     const send = (message: DebugMessage) => res.write(`data: ${JSON.stringify(message)}\n\n`)
-    for (const entry of this.#background.values()) send({ type: 'background', ...entry })
-    for (const trace of this.#backlog) send({ type: 'trace', trace })
-    send({ type: 'ready' })
     this.#subscribers.add(send)
     // Comments keep proxies from closing an idle stream.
     const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000)

@@ -71,45 +71,33 @@ describe('debug system map', () => {
 
     feed.push(query('t1', 3))
     feed.push(root('t1'))
-    expect(messages).toEqual([{ type: 'ready' }])
+    expect(messages).toEqual([])
     // Arrives after the root, as it can when two connections race.
     feed.push(query('t1', 4))
     await vi.advanceTimersByTimeAsync(1_000)
 
-    expect(messages).toHaveLength(2)
-    const message = messages[1]
+    expect(messages).toHaveLength(1)
+    const message = messages[0]
     expect(message?.type).toBe('trace')
     if (message?.type !== 'trace') return
     expect(message.trace.handle).toBe('alice.test')
     expect(message.trace.events.map((e) => e.kind)).toEqual(['firehose', 'sql', 'sql'])
   })
 
-  it('counts work outside any trace instead of sending it', () => {
+  it('leaves out work outside any trace', () => {
     const feed = new TraceFeed()
     const messages = listen(feed)
     feed.push(query(undefined, 0))
-    feed.push(query(undefined, 1))
-    expect(messages.at(-1)).toEqual({
-      type: 'background',
-      service: 'appview',
-      label: 'Record the like',
-      count: 2,
-    })
+    expect(messages).toEqual([])
   })
 
-  it('gives a new page the recent traces and background counts', async () => {
+  it('gives a new page nothing that happened before it connected', async () => {
     vi.useFakeTimers()
     const feed = new TraceFeed()
-    for (let n = 0; n < TraceFeed.BACKLOG + 5; n += 1) feed.push(root(`t${n}`))
+    feed.push(root('t1'))
     feed.push(query(undefined, 0))
     await vi.advanceTimersByTimeAsync(1_000)
-
-    const messages = listen(feed)
-    expect(messages[0]?.type).toBe('background')
-    const traces = messages.filter((m) => m.type === 'trace')
-    expect(traces).toHaveLength(TraceFeed.BACKLOG)
-    expect(messages.at(-1)).toEqual({ type: 'ready' })
-    expect(traces[0]?.type === 'trace' && traces[0].trace.id).toBe('t5')
+    expect(listen(feed)).toEqual([])
   })
 })
 
