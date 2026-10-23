@@ -3,7 +3,7 @@
  * each request, firehose event, and transcode job replayed step by step. For
  * local development and demos. Static HTML; the script reads two endpoints:
  *
- * - `/debug/api/stream`: assembled traces and background counts, as
+ * - `/debug/api/stream`: assembled traces, as
  *   server-sent events (services must run with DEBUG_QUERY_TAP=1);
  * - `/debug/api/snapshot`: row counts for the tables on the map, polled.
  *
@@ -60,7 +60,6 @@ ${MAP}
         <h2>Activity</h2>
         <span>Newest first</span>
       </div>
-      <p id="background" class="background"></p>
       <ol id="traces"></ol>
     </aside>
   </div>
@@ -225,7 +224,6 @@ const STYLES = `
   .controls svg { width: 16px; height: 16px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
   #play .play, #play.live .pause { display: inline; }
   #play .pause, #play.live .play { display: none; }
-  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--yours); margin-right: 6px; }
   .queue { font-size: 13px; color: var(--muted); margin-left: 8px; }
   .keys { margin-left: auto; font: 12px var(--mono); color: var(--faint); }
   .caption { min-height: 76px; margin-top: 12px; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 2px 16px; align-items: baseline; }
@@ -247,8 +245,6 @@ const STYLES = `
   .aside-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   h2 { font: 600 18px var(--cond); margin: 0; }
   .aside-head span { font-size: 13px; color: var(--muted); }
-  .background { margin: 4px 0 12px; font-size: 13px; color: var(--muted); }
-  .background b { font: 500 12.5px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 
   #traces { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); max-height: calc(100vh - 170px); overflow-y: auto; }
   .trace { border-bottom: 1px solid var(--rule); }
@@ -626,19 +622,6 @@ const SCRIPT = String.raw`
     return item
   }
 
-  const background = new Map()
-  function renderBackground() {
-    const top = [...background.values()].sort((a, b) => b.count - a.count).slice(0, 3)
-    const p = $('background')
-    p.replaceChildren()
-    if (!top.length) return
-    p.append('Not drawn: ')
-    top.forEach((b, i) => {
-      if (i) p.append(' · ')
-      p.append(b.label + ' (' + b.service + ') ', el('b', '', b.count + '×'))
-    })
-  }
-
   // -------------------------------------------------------------------------
   // Player. Live by default: each new trace plays as it arrives, interrupting
   // the one on screen. Back, forward, or picking a step pauses on that step;
@@ -699,7 +682,7 @@ const SCRIPT = String.raw`
     const status = $('queue')
     status.replaceChildren()
     if (live) {
-      status.append(el('span', 'live-dot'), 'Live')
+      status.append('Live')
       return
     }
     const behind = pos.ti < 0 ? traces.length : traces.length - 1 - pos.ti
@@ -772,10 +755,8 @@ const SCRIPT = String.raw`
   })
 
   // -------------------------------------------------------------------------
-  // Data. The server sends its backlog, then 'ready', then traces as they
-  // finish. The backlog is listed but not played.
+  // Data. The server sends only what finishes after this page connected.
   // -------------------------------------------------------------------------
-  let caughtUp = false
   function receive(raw) {
     const trace = build(raw)
     if (!trace.steps.length) return
@@ -786,7 +767,7 @@ const SCRIPT = String.raw`
       pos.ti -= 1
       if (pos.ti < 0) pos = { ti: -1, si: -1 }
     }
-    if (caughtUp && live) playTrace(traces.length - 1)
+    if (live) playTrace(traces.length - 1)
     else renderControls()
   }
 
@@ -795,22 +776,11 @@ const SCRIPT = String.raw`
     source.onmessage = (message) => {
       const data = JSON.parse(message.data)
       if (data.type === 'trace') receive(data.trace)
-      else if (data.type === 'ready') caughtUp = true
-      else if (data.type === 'background') {
-        background.set(data.service + ' ' + data.label, data)
-        renderBackground()
-      }
     }
     source.onerror = () => {
-      // EventSource reconnects on its own and the server resends its backlog.
+      // Keep what this page has seen; reconnect for what comes next.
       source.close()
-      setTimeout(() => {
-        traces.splice(0).forEach((t) => t.item.remove())
-        pos = { ti: -1, si: -1 }
-        caughtUp = false
-        background.clear()
-        connect()
-      }, 3000)
+      setTimeout(connect, 3000)
     }
   }
 
