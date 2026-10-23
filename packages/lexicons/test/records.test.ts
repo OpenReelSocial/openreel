@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   SocialOpenreelEngagementCompletionRate,
+  SocialOpenreelEngagementLike,
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
@@ -19,7 +20,10 @@ import {
   completionRate,
   feedGenerator,
   generatorView,
+  like,
   sampleCid,
+  sampleDid,
+  samplePostUri,
   videoPost,
   watchEvent,
 } from './fixtures.ts'
@@ -154,6 +158,28 @@ describe(ids.SocialOpenreelEngagementWatchEvent, () => {
   })
 })
 
+describe(ids.SocialOpenreelEngagementLike, () => {
+  const nsid = ids.SocialOpenreelEngagementLike
+
+  it('accepts a like', () => {
+    expect(() => lexicons.assertValidRecord(nsid, like())).not.toThrow()
+    expect(SocialOpenreelEngagementLike.validateRecord(like()).success).toBe(true)
+  })
+
+  it.each<Mutation>([
+    ['missing subject', (r) => delete r['subject']],
+    ['subject without cid', (r) => (r['subject'] = { uri: 'at://did:plc:abc/x.y.z/1' })],
+    ['subject with a non-AT URI', (r) => (r['subject'] = { uri: 'https://x', cid: 'bafy' })],
+    ['missing createdAt', (r) => delete r['createdAt']],
+    badDatetime,
+  ])('rejects %s', (_name, mutate) => {
+    const record: Record<string, unknown> = like()
+    mutate(record)
+    expectRejected(nsid, record)
+    expect(SocialOpenreelEngagementLike.validateRecord(record).success).toBe(false)
+  })
+})
+
 describe(ids.SocialOpenreelEngagementCompletionRate, () => {
   const nsid = ids.SocialOpenreelEngagementCompletionRate
 
@@ -262,6 +288,37 @@ describe(ids.SocialOpenreelFeedDefs, () => {
     const value: Record<string, unknown> = { ...generatorView() }
     mutate(value)
     expect(SocialOpenreelFeedDefs.validateGeneratorView(value).success).toBe(false)
+  })
+})
+
+describe(ids.SocialOpenreelFeedGetFeed, () => {
+  const postView = (extra: Record<string, unknown> = {}) => ({
+    uri: samplePostUri,
+    cid: sampleCid,
+    author: { did: sampleDid, handle: 'alice.openreel.social' },
+    record: lexToJson(videoPost()),
+    playlist: 'https://media.openreel.social/did/cid/playlist.m3u8',
+    indexedAt: '2026-09-15T12:00:01.000Z',
+    ...extra,
+  })
+  const valid = (post: Record<string, unknown>) => {
+    try {
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedGetFeed, { feed: [post] })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('returns post views with and without a like count', () => {
+    expect(valid(postView())).toBe(true)
+    expect(valid(postView({ likeCount: 0 }))).toBe(true)
+    expect(valid(postView({ likeCount: 42 }))).toBe(true)
+  })
+
+  it('rejects a negative or fractional like count', () => {
+    expect(valid(postView({ likeCount: -1 }))).toBe(false)
+    expect(valid(postView({ likeCount: 1.5 }))).toBe(false)
   })
 })
 

@@ -2,6 +2,7 @@ import type { Migration, MigrationProvider } from 'kysely/migration'
 
 import * as initialSchema from './0001_initial_schema.ts'
 import * as videoMedia from './0002_video_media.ts'
+import * as likes from './0003_likes.ts'
 
 /**
  * Every migration, keyed by name. Kysely applies migrations in the lexical order
@@ -20,6 +21,7 @@ import * as videoMedia from './0002_video_media.ts'
 export const migrations: Record<string, Migration> = {
   '0001_initial_schema': initialSchema,
   '0002_video_media': videoMedia,
+  '0003_likes': likes,
 }
 
 /** A `MigrationProvider` backed by the in-memory {@link migrations} map. */

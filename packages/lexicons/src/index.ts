@@ -7,6 +7,7 @@ export {
   ComAtprotoLabelDefs,
   ComAtprotoRepoStrongRef,
   SocialOpenreelEngagementCompletionRate,
+  SocialOpenreelEngagementLike,
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedDescribeFeedGenerator,

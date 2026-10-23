@@ -3,10 +3,17 @@ import SwiftUI
 
 @MainActor
 struct ContentView: View {
-    @State private var auth = AuthController()
+    @State private var auth: AuthController
+    @State private var likes: LikeStore
     @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
     @State private var playback = FeedPlaybackController()
     @State private var selectedTab = AppTab.home
+
+    init() {
+        let auth = AuthController()
+        _auth = State(initialValue: auth)
+        _likes = State(initialValue: LikeStore(auth: auth))
+    }
 
     var body: some View {
         Group {
@@ -28,6 +35,8 @@ struct ContentView: View {
             playback.onWatchFinished = { recorder.record($0) }
             await auth.restore()
         }
+        // Hearts show the signed-in account's own likes.
+        .task(id: auth.session?.did.rawValue) { await likes.sync() }
     }
 
     private var tabs: some View {
@@ -40,7 +49,7 @@ struct ContentView: View {
         ) { tab in
             switch tab {
             case .home:
-                FeedView(store: feed, playback: playback)
+                FeedView(store: feed, playback: playback, likes: likes)
             case .profile:
                 profile
             case .discover, .create, .inbox:

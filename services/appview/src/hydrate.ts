@@ -34,6 +34,7 @@ export async function hydratePosts(
     .innerJoin('video_media as m', (join) =>
       join.onRef('m.author_did', '=', 'p.author_did').onRef('m.video_cid', '=', 'p.video_cid'),
     )
+    .leftJoin('video_post_stats as s', 's.uri', 'p.uri')
     .select([
       'p.uri',
       'p.cid',
@@ -47,6 +48,7 @@ export async function hydratePosts(
       'm.width',
       'm.height',
       'm.duration_ms',
+      's.like_count',
     ])
     .where('p.uri', 'in', uris)
     .where('m.status', '=', 'ready')
@@ -74,6 +76,8 @@ export async function hydratePosts(
       view.aspectRatio = { width: row.width / d, height: row.height / d }
     }
     if (row.duration_ms !== null && row.duration_ms > 0) view.durationMs = row.duration_ms
+    // A post nobody has watched or liked has no stats row yet.
+    view.likeCount = row.like_count ?? 0
     views.push(view)
   }
   return views

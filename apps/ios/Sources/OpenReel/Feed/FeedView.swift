@@ -7,6 +7,7 @@ import SwiftUI
 struct FeedView: View {
     let store: FeedStore
     let playback: FeedPlaybackController
+    let likes: LikeStore
 
     @State private var visibleReelID: String?
     @State private var isChoosingFeed = false
@@ -127,7 +128,10 @@ struct FeedView: View {
                             onTap: { playback.togglePause() },
                             onScrub: playback.scrub,
                             onSpeedHold: playback.holdForSpeed,
-                            onSpeedLock: playback.lockSpeed
+                            onSpeedLock: playback.lockSpeed,
+                            isLiked: likes.isLiked(reel),
+                            likeCount: likes.likeCount(reel),
+                            onToggleLike: { likes.toggle(reel) }
                         )
                         .containerRelativeFrame(.vertical)
                         .id(reel.id)
@@ -194,7 +198,8 @@ struct FeedView: View {
 #Preview {
     FeedView(
         store: FeedStore(loadFeeds: { MockReelProvider.feeds }, loadPage: { _, _ in MockReelProvider.page }),
-        playback: FeedPlaybackController()
+        playback: FeedPlaybackController(),
+        likes: LikeStore(auth: AuthController())
     )
     .preferredColorScheme(.dark)
 }

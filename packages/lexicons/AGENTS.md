@@ -134,6 +134,15 @@ flag the change as potentially breaking in the PR rather than deciding alone.
   the case OpenReel is designed to avoid. The feed URI is the record's own
   AT-URI, so there is no `feedUri` field.
 
+- **Likes are `social.openreel.engagement.like`, not `app.bsky.feed.like`.**
+  The shape mirrors `app.bsky.feed.like` (`subject` strongRef, `createdAt`,
+  `tid` key) so it reads familiarly, but the record lives under the OpenReel
+  namespace: this package authors only `social.openreel.*` documents, and an
+  `app.bsky.feed.like` pointing at a video post would surface in Bluesky's
+  AppView as a like of a post it cannot show. It sits beside `watchEvent`
+  because both are a viewer's engagement with a video. Post views carry the
+  aggregate as `likeCount`, and `likes` is a feed ranking signal.
+
 - **Feed queries mirror `app.bsky.feed.*`.** `social.openreel.feed.getFeedSkeleton`
   has the shape of `app.bsky.feed.getFeedSkeleton` (generators return URIs,
   the AppView hydrates), and `getFeed` returns

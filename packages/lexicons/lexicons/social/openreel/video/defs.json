@@ -30,6 +30,11 @@
           "description": "Duration of the transcoded video in milliseconds, as measured by the media pipeline.",
           "minimum": 1
         },
+        "likeCount": {
+          "type": "integer",
+          "description": "Number of accounts the AppView has seen like the post (social.openreel.engagement.like records).",
+          "minimum": 0
+        },
         "indexedAt": { "type": "string", "format": "datetime" }
       }
     },

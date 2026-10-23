@@ -8,13 +8,13 @@
       "ranking": { "type": "chronological" }
     },
     {
-      "id": "most-viewed",
-      "displayName": "Most viewed",
-      "description": "Videos with the most views first. A view is a watch event a viewer chose to publish from their own account.",
+      "id": "popular",
+      "displayName": "Popular",
+      "description": "The most-liked videos first. A like is a record the viewer published from their own account; newer videos win ties.",
       "rankingCriteria": "heuristic",
       "ranking": {
         "type": "weighted",
-        "weights": [{ "signal": "views", "weight": 1 }]
+        "weights": [{ "signal": "likes", "weight": 1 }]
       }
     }
   ]

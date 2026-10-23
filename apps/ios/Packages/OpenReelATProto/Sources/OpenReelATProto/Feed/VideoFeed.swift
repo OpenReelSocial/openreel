@@ -15,6 +15,9 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
     public let thumbnail: URL?
     public let aspectRatio: VideoAspectRatio?
     public let durationMs: Int?
+    /// Accounts the AppView has seen like the post; `nil` from an AppView
+    /// that does not count likes.
+    public let likeCount: Int?
     public let indexedAt: String
 
     public var id: String { uri }
@@ -28,6 +31,7 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         thumbnail: URL? = nil,
         aspectRatio: VideoAspectRatio? = nil,
         durationMs: Int? = nil,
+        likeCount: Int? = nil,
         indexedAt: String
     ) {
         self.uri = uri
@@ -38,11 +42,12 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         self.thumbnail = thumbnail
         self.aspectRatio = aspectRatio
         self.durationMs = durationMs
+        self.likeCount = likeCount
         self.indexedAt = indexedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, indexedAt
+        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, likeCount, indexedAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -55,6 +60,7 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         thumbnail = try? container.decodeIfPresent(URL.self, forKey: .thumbnail)
         aspectRatio = try? container.decodeIfPresent(VideoAspectRatio.self, forKey: .aspectRatio)
         durationMs = try? container.decodeIfPresent(Int.self, forKey: .durationMs)
+        likeCount = try? container.decodeIfPresent(Int.self, forKey: .likeCount)
         indexedAt = try container.decode(String.self, forKey: .indexedAt)
     }
 }

@@ -16,14 +16,25 @@ struct ReelCellView: View {
     var onScrub: (ScrubEvent) -> Void = { _ in }
     var onSpeedHold: (Bool) -> Void = { _ in }
     var onSpeedLock: (Bool) -> Void = { _ in }
-
-    @State private var isLiked = false
+    var isLiked = false
+    var likeCount = 0
+    var onToggleLike: () -> Void = {}
 
     var body: some View {
         ZStack(alignment: .bottom) {
             HStack(alignment: .bottom, spacing: 12) {
                 ReelInfoView(reel: reel)
-                ReelHeartButton(isLiked: $isLiked)
+                VStack(spacing: -6) {
+                    ReelHeartButton(isLiked: isLiked, onToggleLike: onToggleLike)
+                        .accessibilityValue(likeCount == 1 ? "1 like" : "\(likeCount) likes")
+                    Text(likeCount, format: .number.notation(.compactName))
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(MonoTheme.primary)
+                        .shadow(color: MonoTheme.scrim.opacity(0.6), radius: 2)
+                        .contentTransition(.numericText(value: Double(likeCount)))
+                        .animation(.snappy, value: likeCount)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(.leading, 16)
             .padding(.trailing, 10)

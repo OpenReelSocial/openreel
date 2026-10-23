@@ -30,6 +30,8 @@ export interface PostView {
   aspectRatio?: SocialOpenreelVideoPost.AspectRatio
   /** Duration of the transcoded video in milliseconds, as measured by the media pipeline. */
   durationMs?: number
+  /** Number of accounts the AppView has seen like the post (social.openreel.engagement.like records). */
+  likeCount?: number
   indexedAt: string
 }
 

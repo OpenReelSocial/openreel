@@ -40,8 +40,8 @@
       "properties": {
         "signal": {
           "type": "string",
-          "description": "'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'recency' decays from 1 by half every halfLifeHours.",
-          "knownValues": ["views", "recency"]
+          "description": "'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'likes' is its like count (indexed social.openreel.engagement.like records) relative to the most-liked post; 'recency' decays from 1 by half every halfLifeHours.",
+          "knownValues": ["views", "likes", "recency"]
         },
         "weightBps": {
           "type": "integer",

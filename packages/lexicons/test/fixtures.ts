@@ -6,6 +6,7 @@ import { CID } from 'multiformats/cid'
 
 import type {
   SocialOpenreelEngagementCompletionRate,
+  SocialOpenreelEngagementLike,
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
@@ -49,6 +50,14 @@ export function watchEvent(): SocialOpenreelEngagementWatchEvent.Record {
     rewatchCount: 1,
     context: 'feed',
     createdAt: '2026-09-15T12:05:00.000Z',
+  }
+}
+
+export function like(): SocialOpenreelEngagementLike.Record {
+  return {
+    $type: 'social.openreel.engagement.like',
+    subject: { uri: samplePostUri, cid: sampleCid },
+    createdAt: '2026-09-15T12:06:00.000Z',
   }
 }
 

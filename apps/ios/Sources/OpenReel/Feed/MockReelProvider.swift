@@ -13,11 +13,11 @@ enum MockReelProvider {
             rankingCriteria: "chronological"
         ),
         FeedGeneratorView(
-            uri: "at://openreel.social/social.openreel.feed.generator/most-viewed",
-            displayName: "Most viewed",
-            description: "Videos with the most views first. A view is a watch event a viewer chose to publish from their own account.",
+            uri: "at://openreel.social/social.openreel.feed.generator/popular",
+            displayName: "Popular",
+            description: "The most-liked videos first. A like is a record the viewer published from their own account; newer videos win ties.",
             rankingCriteria: "heuristic",
-            weights: [RankingWeight(signal: "views", weightBps: 10_000)]
+            weights: [RankingWeight(signal: "likes", weightBps: 10_000)]
         ),
     ]
 

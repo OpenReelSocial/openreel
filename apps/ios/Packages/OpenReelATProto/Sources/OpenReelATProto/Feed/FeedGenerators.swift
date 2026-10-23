@@ -40,7 +40,7 @@ public struct FeedGeneratorView: Decodable, Sendable, Equatable, Identifiable {
 
 /// `social.openreel.feed.defs#rankingWeight`: one term of a weighted score.
 public struct RankingWeight: Decodable, Sendable, Equatable {
-    /// `views` or `recency` today; an open set.
+    /// `views`, `likes`, or `recency` today; an open set.
     public let signal: String
     /// Share of the score in basis points (0-10000).
     public let weightBps: Int

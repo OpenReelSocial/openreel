@@ -24,6 +24,7 @@ final class VideoFeedTests: XCTestCase {
             "thumbnail": "https://media.example.com/did%3Aplc%3Aalice/bafkreivideo/poster.jpg",
             "aspectRatio": ["width": 9, "height": 16],
             "durationMs": 5005,
+            "likeCount": 3,
             "indexedAt": "2026-10-05T00:00:01.000Z",
         ]
     }
@@ -47,6 +48,7 @@ final class VideoFeedTests: XCTestCase {
         XCTAssertEqual(first.aspectRatio, VideoAspectRatio(width: 9, height: 16))
         XCTAssertEqual(first.aspectRatio?.value ?? 0, 0.5625, accuracy: 0.0001)
         XCTAssertEqual(first.durationMs, 5005)
+        XCTAssertEqual(first.likeCount, 3)
         XCTAssertNil(page.feed[1].author.handle)
     }
 
@@ -79,6 +81,7 @@ final class VideoFeedTests: XCTestCase {
         var oddOptionals = postJSON(rkey: "3k4")
         oddOptionals["aspectRatio"] = "tall"
         oddOptionals["durationMs"] = "long"
+        oddOptionals["likeCount"] = "many"
 
         let transport = StubTransport()
         transport.json("GET", getFeedURL, ["feed": [postJSON(rkey: "3k1"), noPlaylist, "garbage", oddRecord, oddOptionals]])
@@ -89,6 +92,7 @@ final class VideoFeedTests: XCTestCase {
         XCTAssertNil(page.feed[1].record, "an unreadable record keeps the post but drops its metadata")
         XCTAssertNil(page.feed[2].aspectRatio)
         XCTAssertNil(page.feed[2].durationMs)
+        XCTAssertNil(page.feed[2].likeCount)
     }
 
     func testSurfacesXRPCErrors() async {

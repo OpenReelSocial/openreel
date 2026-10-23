@@ -18,6 +18,7 @@ import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
+import * as SocialOpenreelEngagementLike from './types/social/openreel/engagement/like.js'
 import * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
 import * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
 import * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
@@ -37,6 +38,7 @@ export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as SocialOpenreelEngagementCompletionRate from './types/social/openreel/engagement/completionRate.js'
+export * as SocialOpenreelEngagementLike from './types/social/openreel/engagement/like.js'
 export * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/engagement/watchEvent.js'
 export * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
 export * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
@@ -173,11 +175,96 @@ export class SocialOpenreelNS {
 
 export class SocialOpenreelEngagementNS {
   _client: XrpcClient
+  like: SocialOpenreelEngagementLikeRecord
   watchEvent: SocialOpenreelEngagementWatchEventRecord
 
   constructor(client: XrpcClient) {
     this._client = client
+    this.like = new SocialOpenreelEngagementLikeRecord(client)
     this.watchEvent = new SocialOpenreelEngagementWatchEventRecord(client)
+  }
+}
+
+export class SocialOpenreelEngagementLikeRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: SocialOpenreelEngagementLike.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'social.openreel.engagement.like',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: SocialOpenreelEngagementLike.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'social.openreel.engagement.like',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<SocialOpenreelEngagementLike.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'social.openreel.engagement.like'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<SocialOpenreelEngagementLike.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'social.openreel.engagement.like'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'social.openreel.engagement.like', ...params },
+      { headers },
+    )
   }
 }
 

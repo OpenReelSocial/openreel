@@ -18,7 +18,14 @@ function feedsFile(ranking: unknown) {
 describe('feeds file', () => {
   it('ships a valid default with Latest first', () => {
     const feeds = loadFeeds()
-    expect(feeds.map((f) => f.id)).toEqual(['recent', 'most-viewed'])
+    expect(feeds.map((f) => f.id)).toEqual(['recent', 'popular'])
+  })
+
+  it('accepts a weighted feed ranked by likes', () => {
+    const [feed] = parseFeeds(
+      feedsFile({ type: 'weighted', weights: [{ signal: 'likes', weight: 1 }] }),
+    )
+    expect(feed?.ranking).toEqual({ type: 'weighted', weights: [{ signal: 'likes', weight: 1 }] })
   })
 
   it('accepts a weighted feed mixing views and recency', () => {
@@ -44,7 +51,7 @@ describe('feeds file', () => {
     ['an unknown ranking type', { type: 'magic' }, 'ranking.type'],
     [
       'an unknown signal',
-      { type: 'weighted', weights: [{ signal: 'likes', weight: 1 }] },
+      { type: 'weighted', weights: [{ signal: 'shares', weight: 1 }] },
       'signal',
     ],
     [
@@ -85,9 +92,10 @@ describe('GET describeFeedGenerator', () => {
         rankingCriteria: 'chronological',
       }),
       expect.objectContaining({
-        uri: 'at://openreel.social/social.openreel.feed.generator/most-viewed',
+        uri: 'at://openreel.social/social.openreel.feed.generator/popular',
+        displayName: 'Popular',
         rankingCriteria: 'heuristic',
-        weights: [{ signal: 'views', weightBps: 10_000 }],
+        weights: [{ signal: 'likes', weightBps: 10_000 }],
       }),
     ])
     expect(body.feeds[0]).not.toHaveProperty('weights')
