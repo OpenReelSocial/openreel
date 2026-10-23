@@ -20,11 +20,15 @@ https://media.dev.openreel.social), deployed from `main` by
 | `lib/dev-stack.ts` | `OpenReel-Dev`: ECR, container log group, and the constructs below |
 | `lib/host.ts` | VPC, security group, EC2 host, Elastic IP, host role, first-boot setup |
 | `lib/media.ts` | Private S3 bucket and CloudFront distribution for HLS |
+| `lib/backups.ts` | Private, versioned S3 bucket for host backups |
 | `lib/deploy-access.ts` | GitHub OIDC provider and the deploy role |
 | `lib/monitoring.ts` | SNS alerts, alarms, Route 53 health checks, dashboard, budget |
 | `aws/scripts/deploy.sh` | Runs on the host for every deploy (see below) |
+| `aws/scripts/backup.sh`, `restore.sh` | Run on the host by `make aws-backup` / `make aws-restore` |
 | `aws/nginx/` | The host's nginx site, and the HTTP-only site used before TLS exists |
 | `scripts/init-secrets.sh` | One-time generation of the host's secrets in Parameter Store |
+| `scripts/export-secrets.sh`, `import-secrets.sh` | Copy those secrets to another account |
+| `scripts/host-run.sh` | Runs an `aws/scripts/` script on the host through SSM |
 | `test/` | Vitest + `aws-cdk-lib/assertions` tests, run by `make test` |
 
 Every resource is tagged `Project=openreel`, `Environment=dev`,
@@ -211,12 +215,82 @@ its disk, Elastic IP, and data; `start-instances` brings it back, and Compose
 restarts the containers. While it is stopped, the health alarms fire.
 
 **Cost.** About $65–80 a month while running: the instance, a 60 GB gp3
-volume, a public IPv4 address, two Route 53 health checks, and logs. S3 and
-CloudFront cost cents at demo traffic. A stopped instance leaves roughly
+volume, a public IPv4 address, two Route 53 health checks, and logs. S3 (media
+and backups) and CloudFront cost cents at demo traffic. A stopped instance leaves roughly
 $10 a month.
 
 **Changing the host.** The AMI is pinned in `lib/config.ts`. Changing it, or
 anything else that replaces the instance, destroys every Compose volume on
-it: PDS accounts, Postgres, and PLC. The PR should say so. First-boot setup
+it: PDS accounts, Postgres, and PLC. The PR should say so, and whoever deploys
+it takes a backup first and restores it afterwards (below). First-boot setup
 in `lib/host.ts` runs only on a new instance, so editing it does not change
 the running host.
+
+## Backups
+
+The stack's `BackupBucket` is private, encrypted, and versioned, and keeps each
+backup (and any version replaced or deleted since) for 30 days. Only the host
+role can write to it, and nothing can delete from it but the lifecycle rule and
+an account administrator. Backups are taken by hand; nothing schedules them.
+
+```sh
+export AWS_PROFILE=openreel-dev
+make aws-backup                              # prints the prefix, dev/<timestamp>
+aws s3 ls s3://<BackupBucket>/dev/           # every backup
+make aws-restore BACKUP=dev/<timestamp>      # asks you to type the prefix
+```
+
+`make aws-backup` runs [`aws/scripts/backup.sh`](aws/scripts/backup.sh) on the
+host through SSM. It stops the PDS, PLC, and every service that writes to
+Postgres, uploads a PLC dump, an AppView dump, and a tar of the PDS data volume
+(accounts, repositories, blobs), and starts them again, also if the backup
+fails. The PDS is down for as long as the upload takes, about a minute at demo
+size. Redis and Jetstream are caches and are not copied. Media renditions stay
+in their own bucket.
+
+`make aws-restore` runs [`aws/scripts/restore.sh`](aws/scripts/restore.sh). It
+is destructive: it removes every container and volume on the host, restores the
+two databases and the PDS volume, migrates, and starts everything. It refuses a
+backup whose hostname differs from the host's `PDS_HOSTNAME`, since every DID
+document names it. The host needs the secrets the backup was taken with: the
+PDS's PLC rotation key signs every DID update, and its JWT secret signs every
+session.
+
+## Moving accounts
+
+To move the environment to another AWS account (for example one with
+credits), the data, the secrets, and the hostname `dev.openreel.social` move
+together. Run the old-account steps with its profile and the rest with the new
+one's.
+
+1. **Old account.** `make aws-backup`, then export the secrets to a file
+   outside the repository:
+   `infra/scripts/export-secrets.sh ~/openreel-dev-secrets.json`.
+   The file holds the PLC rotation key, which controls every DID the PDS
+   created; keep it private and delete it once imported.
+2. **Copy the backup** to a bucket the new account can read, once step 3 has
+   created it: `aws s3 sync s3://<old BackupBucket>/dev/<timestamp>/
+   s3://<new BackupBucket>/dev/<timestamp>/`, with credentials that can read
+   one and write the other (or download with one profile and upload with the
+   other).
+3. **New account.** Do the one-time account setup, then the certificate and
+   stack deploys (steps 1 and 2 of *Deploying the environment*). Add the new
+   ACM validation record in Cloudflare.
+4. **Secrets.** `infra/scripts/import-secrets.sh ~/openreel-dev-secrets.json`
+   instead of `init-secrets.sh`. If `init-secrets.sh` already ran there, add
+   `--overwrite`.
+5. **DNS.** Point the `dev` A record at the new `HostIp` and the `media.dev`
+   CNAME at the new `MediaDistributionDomain`, both still DNS only.
+6. **GitHub.** Update `AWS_DEPLOY_ROLE_ARN`, `AWS_INSTANCE_ID`, and
+   `AWS_MEDIA_BUCKET` from the new outputs, and run the deploy workflow once.
+   It obtains a new TLS certificate for the host.
+7. **Restore.** `make aws-restore BACKUP=dev/<timestamp>`.
+8. **Media.** Copy renditions with
+   `aws s3 sync s3://<old MediaBucket> s3://<new MediaBucket>`, or let the
+   media worker regenerate them from PDS blobs:
+   `update video_media set status = 'pending', attempts = 0` in the AppView
+   database.
+9. **Check.** `PUBLIC_URL=https://dev.openreel.social make smoke`, then sign
+   in on the iPhone with an existing account and confirm its posts are there.
+   Stop or destroy the old stack once you are satisfied; its buckets are
+   retained either way.

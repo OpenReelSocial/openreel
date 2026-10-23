@@ -4,6 +4,7 @@ import { Repository, TagStatus } from 'aws-cdk-lib/aws-ecr'
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs'
 import type { Construct } from 'constructs'
 
+import { Backups } from './backups.ts'
 import { resourceName, type EnvironmentConfig } from './config.ts'
 import { DeployAccess } from './deploy-access.ts'
 import { Host, parameterPath } from './host.ts'
@@ -41,6 +42,7 @@ export class DevStack extends Stack {
   readonly repositories: Readonly<Record<ServiceImage, Repository>>
   readonly host: Host
   readonly media: Media
+  readonly backups: Backups
   readonly deployAccess: DeployAccess
   readonly monitoring: Monitoring
 
@@ -87,6 +89,9 @@ export class DevStack extends Stack {
     })
     this.media.grantPublish(this.host.role)
 
+    this.backups = new Backups(this, 'Backups')
+    this.backups.grantBackupAndRestore(this.host.role)
+
     this.deployAccess = new DeployAccess(this, 'DeployAccess', {
       config: this.config,
       repositories: Object.values(repositories),
@@ -120,6 +125,10 @@ export class DevStack extends Stack {
       MediaBucket: {
         value: this.media.bucket.bucketName,
         description: 'MEDIA_S3_BUCKET for the media worker',
+      },
+      BackupBucket: {
+        value: this.backups.bucket.bucketName,
+        description: 'Where make aws-backup writes and make aws-restore reads',
       },
       DeployRoleArn: {
         value: this.deployAccess.role.roleArn,
