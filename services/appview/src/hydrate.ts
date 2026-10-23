@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { purpose, type Database } from '@openreel/db'
 import type { SocialOpenreelVideoDefs } from '@openreel/lexicons'
 import type { Kysely } from 'kysely'
 
@@ -28,7 +28,7 @@ export async function hydratePosts(
 ): Promise<SocialOpenreelVideoDefs.PostView[]> {
   if (uris.length === 0) return []
 
-  const rows = await db
+  const query = db
     .selectFrom('video_post as p')
     .innerJoin('actor as a', 'a.did', 'p.author_did')
     .innerJoin('video_media as m', (join) =>
@@ -52,7 +52,7 @@ export async function hydratePosts(
     ])
     .where('p.uri', 'in', uris)
     .where('m.status', '=', 'ready')
-    .execute()
+  const rows = await purpose('Hydrate post views for skeleton', () => query.execute())
 
   const byUri = new Map(rows.map((row) => [row.uri, row]))
   const views: SocialOpenreelVideoDefs.PostView[] = []

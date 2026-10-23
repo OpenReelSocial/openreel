@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { purpose, type Database } from '@openreel/db'
 import { sql, type Kysely } from 'kysely'
 
 import type { FeedDefinition, SignalWeight } from './config.ts'
@@ -60,7 +60,7 @@ export const chronological: Feed = {
       )
     }
 
-    const rows = await query.execute()
+    const rows = await purpose('Select playable posts, newest first', () => query.execute())
     const last = rows.at(-1)
     return {
       feed: rows.map((row) => ({ post: row.uri })),
@@ -106,6 +106,7 @@ export function weighted(weights: SignalWeight[]): Feed {
     }
   }
   const score = sql.join(weights.map(term), sql` + `)
+  const signals = new Intl.ListFormat('en').format(weights.map((w) => w.signal))
 
   return {
     async page(db, limit, cursor) {
@@ -128,15 +129,17 @@ export function weighted(weights: SignalWeight[]): Feed {
         ])
         .where('m.status', '=', 'ready')
 
-      const rows = await db
-        .selectFrom(candidates.as('c'))
-        .select(['c.uri', sql<number>`${score}`.as('score')])
-        .orderBy('score', 'desc')
-        .orderBy('c.sort_at', 'desc')
-        .orderBy('c.uri', 'desc')
-        .limit(limit)
-        .offset(offset)
-        .execute()
+      const rows = await purpose(`Score and rank playable posts by ${signals}`, () =>
+        db
+          .selectFrom(candidates.as('c'))
+          .select(['c.uri', sql<number>`${score}`.as('score')])
+          .orderBy('score', 'desc')
+          .orderBy('c.sort_at', 'desc')
+          .orderBy('c.uri', 'desc')
+          .limit(limit)
+          .offset(offset)
+          .execute(),
+      )
 
       const next = offset + rows.length
       return {

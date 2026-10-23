@@ -1,6 +1,7 @@
+import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { Database } from '@openreel/db'
+import { traceRoot, traceStep, type Database } from '@openreel/db'
 import type { AtprotoIdentity } from '@openreel/service-core'
 import type { Kysely } from 'kysely'
 
@@ -50,7 +51,10 @@ export class Worker {
   async runOnce(): Promise<boolean> {
     const job = await claimJob(this.#deps.db, this.#deps.maxAttempts)
     if (job === undefined) return false
-    await this.#process(job)
+    await traceRoot(
+      { kind: 'job', name: 'transcode', did: job.authorDid, subject: job.videoCid },
+      () => this.#process(job),
+    )
     return true
   }
 
@@ -78,13 +82,36 @@ export class Worker {
     let work: string | undefined
     try {
       work = await store.workDir()
-      const { pds } = await identity.resolve(job.authorDid)
+      const { pds } = await traceStep(
+        'Resolve author PDS via PLC',
+        { kind: 'call', target: 'plc', method: 'GET', path: `/${job.authorDid}` },
+        () => identity.resolve(job.authorDid),
+      )
       if (pds === undefined) throw new Error(`${job.authorDid} has no PDS endpoint`)
 
       const source = join(work, 'source')
-      await blobs.download(pds, job.authorDid, job.videoCid, source)
-      const result = await transcode(source, join(work, 'out'))
-      await store.publish(join(work, 'out'), job.authorDid, job.videoCid)
+      await traceStep(
+        'Fetch source blob from PDS',
+        { kind: 'call', target: 'pds', method: 'GET', path: '/xrpc/com.atproto.sync.getBlob' },
+        async (note) => {
+          await blobs.download(pds, job.authorDid, job.videoCid, source)
+          note({ bytes: (await stat(source)).size })
+        },
+      )
+      const out = join(work, 'out')
+      const result = await traceStep(
+        'Transcode to HLS renditions',
+        { kind: 'work', what: 'ffmpeg → HLS' },
+        () => transcode(source, out),
+      )
+      await traceStep(
+        'Publish HLS renditions',
+        { kind: 'store', target: store.name },
+        async (note) => {
+          note(await sizeOf(out))
+          await store.publish(out, job.authorDid, job.videoCid)
+        },
+      )
       await completeJob(db, job, result)
       console.log(`[media] ready ${label} in ${((Date.now() - started) / 1000).toFixed(1)}s`)
     } catch (error) {
@@ -95,4 +122,14 @@ export class Worker {
       if (work !== undefined) await store.discard(work)
     }
   }
+}
+
+/** File count and total size of a rendition directory. */
+async function sizeOf(dir: string): Promise<{ objects: number; bytes: number }> {
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true })
+  const files = entries.filter((entry) => entry.isFile())
+  const sizes = await Promise.all(
+    files.map(async (entry) => (await stat(join(entry.parentPath, entry.name))).size),
+  )
+  return { objects: files.length, bytes: sizes.reduce((a, b) => a + b, 0) }
 }

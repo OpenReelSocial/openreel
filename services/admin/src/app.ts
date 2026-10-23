@@ -6,7 +6,7 @@ import type { Express, NextFunction, Request, Response } from 'express'
 import type { Kysely } from 'kysely'
 
 import { collectStatus } from './checks.ts'
-import { pipelineSnapshot, type QueryFeed } from './debug.ts'
+import { tableCounts, type TraceFeed } from './debug.ts'
 import { renderDebugPage } from './debug-page.ts'
 import { renderStatusPage } from './page.ts'
 import { resolveTargets, type Target } from './targets.ts'
@@ -26,7 +26,7 @@ const REFRESH_SECONDS = 10
 /** Database access for the debug portal; without it `/debug` explains what is missing. */
 export interface DebugDeps {
   db: Kysely<Database>
-  queries: QueryFeed
+  traces: TraceFeed
   /**
    * When set, `/debug` requires HTTP Basic auth as `admin` with this password.
    * The shared host sets it, because nginx exposes `/debug` publicly there.
@@ -86,19 +86,19 @@ export function createApp(
       return
     }
     try {
-      res.status(200).json(await pipelineSnapshot(debug.db))
+      res.status(200).json(await tableCounts(debug.db))
     } catch (error) {
       console.error('[admin] snapshot failed:', error)
       res.status(500).json({ error: 'InternalServerError', message: (error as Error).message })
     }
   })
 
-  app.get('/debug/api/queries', (_req: Request, res: Response) => {
+  app.get('/debug/api/stream', (_req: Request, res: Response) => {
     if (debug === undefined) {
       res.status(503).end()
       return
     }
-    debug.queries.stream(res)
+    debug.traces.stream(res)
   })
 
   app.get('/', async (_req: Request, res: Response) => {

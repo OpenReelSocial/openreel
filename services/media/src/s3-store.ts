@@ -42,6 +42,7 @@ export function contentTypeFor(path: string): string {
  * the new playlist.
  */
 export class S3MediaStore implements MediaStore {
+  readonly name = 's3'
   readonly #client: S3Putter
   readonly #bucket: string
 

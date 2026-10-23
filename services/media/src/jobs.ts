@@ -1,4 +1,4 @@
-import type { Database } from '@openreel/db'
+import { purpose, type Database } from '@openreel/db'
 import { sql, type Kysely } from 'kysely'
 
 export interface Job {
@@ -20,7 +20,7 @@ export async function claimJob(
   db: Kysely<Database>,
   maxAttempts: number,
 ): Promise<Job | undefined> {
-  const result = await sql<{ author_did: string; video_cid: string; attempts: number }>`
+  const query = sql<{ author_did: string; video_cid: string; attempts: number }>`
     update video_media
     set status = 'processing', claimed_at = now(), attempts = attempts + 1, updated_at = now()
     where (author_did, video_cid) = (
@@ -41,7 +41,8 @@ export async function claimJob(
       for update skip locked
     )
     returning author_did, video_cid, attempts
-  `.execute(db)
+  `
+  const result = await purpose('Poll transcode queue', () => query.execute(db))
 
   const row = result.rows[0]
   return row && { authorDid: row.author_did, videoCid: row.video_cid, attempts: row.attempts }
@@ -52,7 +53,7 @@ export async function completeJob(
   job: Job,
   media: { width: number; height: number; durationMs: number },
 ): Promise<void> {
-  await db
+  const query = db
     .updateTable('video_media')
     .set({
       status: 'ready',
@@ -65,25 +66,29 @@ export async function completeJob(
     })
     .where('author_did', '=', job.authorDid)
     .where('video_cid', '=', job.videoCid)
-    .execute()
+  await purpose('Mark renditions ready', () => query.execute())
 }
 
 export async function failJob(db: Kysely<Database>, job: Job, error: string): Promise<void> {
-  await db
-    .updateTable('video_media')
-    .set({ status: 'failed', last_error: error.slice(0, 2_000), updated_at: new Date() })
-    .where('author_did', '=', job.authorDid)
-    .where('video_cid', '=', job.videoCid)
-    .execute()
+  await purpose('Record transcode failure', () =>
+    db
+      .updateTable('video_media')
+      .set({ status: 'failed', last_error: error.slice(0, 2_000), updated_at: new Date() })
+      .where('author_did', '=', job.authorDid)
+      .where('video_cid', '=', job.videoCid)
+      .execute(),
+  )
 }
 
 /** Job counts by status, for the status endpoint. */
 export async function queueStats(db: Kysely<Database>): Promise<Record<string, number>> {
-  const rows = await db
-    .selectFrom('video_media')
-    .select(['status', db.fn.countAll<number>().as('count')])
-    .groupBy('status')
-    .execute()
+  const rows = await purpose('Count transcode jobs by status', () =>
+    db
+      .selectFrom('video_media')
+      .select(['status', db.fn.countAll<number>().as('count')])
+      .groupBy('status')
+      .execute(),
+  )
   const stats: Record<string, number> = { pending: 0, processing: 0, ready: 0, failed: 0 }
   for (const row of rows) stats[row.status] = Number(row.count)
   return stats

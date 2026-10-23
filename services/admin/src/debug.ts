@@ -1,32 +1,136 @@
-import type { Database, TappedQuery } from '@openreel/db'
+import { isRootEvent, type Database, type TraceEvent } from '@openreel/db'
 import type { Response } from 'express'
 import { sql, type Kysely } from 'kysely'
 
+/** One thing that happened: a request, a firehose event, or a job, with everything it did. */
+export interface Trace {
+  id: string
+  /** In the order they started. */
+  events: TraceEvent[]
+  /** The handle of the account the trace is about, when the index knows it. */
+  handle?: string
+}
+
+/** Repeated work outside any trace, such as polling, counted rather than drawn. */
+export interface Background {
+  service: string
+  label: string
+  count: number
+}
+
+export type DebugMessage =
+  | { type: 'trace'; trace: Trace }
+  /** Ends the backlog: traces after this are happening now. */
+  | { type: 'ready' }
+  | ({ type: 'background' } & Background)
+
+interface OpenTrace {
+  events: TraceEvent[]
+  timer?: NodeJS.Timeout
+}
+
+function backgroundLabel(event: TraceEvent): string {
+  if (event.purpose !== undefined) return event.purpose
+  if (event.kind === 'sql') return `${event.op} ${event.writes ?? event.reads.join(', ')}`
+  return event.kind
+}
+
 /**
- * Fans tapped queries out to every open debug page, keeping the most recent
- * ones so a page opened mid-demo starts with context rather than a blank list.
+ * Assembles trace events into traces and fans them out to every open debug
+ * page, keeping the most recent so a page opened mid-demo has context.
+ *
+ * Services announce a trace's root (the request, firehose event, or job) when
+ * it finishes, after everything it did. Events from different services can
+ * still arrive slightly out of order, so a trace is sent a short grace period
+ * after its root arrives.
  */
-export class QueryFeed {
-  static readonly BACKLOG = 200
+export class TraceFeed {
+  static readonly BACKLOG = 40
+  static readonly MAX_OPEN = 500
 
-  readonly #backlog: TappedQuery[] = []
-  readonly #subscribers = new Set<(query: TappedQuery) => void>()
+  readonly #open = new Map<string, OpenTrace>()
+  readonly #backlog: Trace[] = []
+  readonly #background = new Map<string, Background>()
+  readonly #subscribers = new Set<(message: DebugMessage) => void>()
+  readonly #handleOf: (did: string) => Promise<string | undefined>
+  readonly #graceMs: number
 
-  push(query: TappedQuery): void {
-    this.#backlog.push(query)
-    if (this.#backlog.length > QueryFeed.BACKLOG) this.#backlog.shift()
-    for (const subscriber of this.#subscribers) subscriber(query)
+  constructor(
+    handleOf: (did: string) => Promise<string | undefined> = () => Promise.resolve(undefined),
+    graceMs = 400,
+  ) {
+    this.#handleOf = handleOf
+    this.#graceMs = graceMs
   }
 
-  /** Streams the backlog, then every new query, as server-sent events. */
+  push(event: TraceEvent): void {
+    if (event.trace === undefined) {
+      this.#countBackground(event)
+      return
+    }
+    let open = this.#open.get(event.trace)
+    if (open === undefined) {
+      // A root that never arrives (a crashed request) must not hold memory forever.
+      if (this.#open.size >= TraceFeed.MAX_OPEN) this.#drop(this.#open.keys().next().value)
+      open = { events: [] }
+      this.#open.set(event.trace, open)
+    }
+    open.events.push(event)
+    if (isRootEvent(event) && open.timer === undefined) {
+      const id = event.trace
+      open.timer = setTimeout(() => void this.#finish(id), this.#graceMs)
+    }
+  }
+
+  #drop(id: string | undefined): void {
+    if (id === undefined) return
+    clearTimeout(this.#open.get(id)?.timer)
+    this.#open.delete(id)
+  }
+
+  async #finish(id: string): Promise<void> {
+    const open = this.#open.get(id)
+    if (open === undefined) return
+    this.#open.delete(id)
+    const events = open.events.sort((a, b) => a.at.localeCompare(b.at))
+    const root = events.find(isRootEvent)
+    const did = root?.kind === 'firehose' || root?.kind === 'job' ? root.did : undefined
+    const handle = did === undefined ? undefined : await this.#handleOf(did).catch(() => undefined)
+    const trace: Trace = { id, events, ...(handle === undefined ? {} : { handle }) }
+
+    this.#backlog.push(trace)
+    if (this.#backlog.length > TraceFeed.BACKLOG) this.#backlog.shift()
+    this.#send({ type: 'trace', trace })
+  }
+
+  #countBackground(event: TraceEvent): void {
+    const label = backgroundLabel(event)
+    const key = `${event.service}\u0000${label}`
+    const entry = this.#background.get(key) ?? { service: event.service, label, count: 0 }
+    entry.count += 1
+    this.#background.set(key, entry)
+    this.#send({ type: 'background', ...entry })
+  }
+
+  #send(message: DebugMessage): void {
+    for (const subscriber of this.#subscribers) subscriber(message)
+  }
+
+  /**
+   * Streams background counts and the backlog, marks the end of the backlog
+   * so the page can tell old traces from new, then sends everything new, as
+   * server-sent events.
+   */
   stream(res: Response): void {
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache',
       connection: 'keep-alive',
     })
-    const send = (query: TappedQuery) => res.write(`data: ${JSON.stringify(query)}\n\n`)
-    for (const query of this.#backlog) send(query)
+    const send = (message: DebugMessage) => res.write(`data: ${JSON.stringify(message)}\n\n`)
+    for (const entry of this.#background.values()) send({ type: 'background', ...entry })
+    for (const trace of this.#backlog) send({ type: 'trace', trace })
+    send({ type: 'ready' })
     this.#subscribers.add(send)
     // Comments keep proxies from closing an idle stream.
     const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000)
@@ -37,106 +141,33 @@ export class QueryFeed {
   }
 }
 
-/** Everything the debug page's pipeline panels show, read in one go. */
-export async function pipelineSnapshot(db: Kysely<Database>) {
-  const [counts, media, cursors, popular, recentWatches, recentLikes, recentJobs] =
-    await Promise.all([
-      sql<{
-        actors: number
-        posts: number
-        watchEvents: number
-        viewers: number
-        likes: number
-        likers: number
-      }>`
-      select
-        (select count(*) from actor)::int as actors,
-        (select count(*) from video_post)::int as "posts",
-        (select count(*) from watch_event)::int as "watchEvents",
-        (select count(distinct actor_did) from watch_event)::int as viewers,
-        (select count(*) from video_like)::int as likes,
-        (select count(distinct actor_did) from video_like)::int as likers
-    `.execute(db),
-      db
-        .selectFrom('video_media')
-        .select(['status', (eb) => eb.fn.countAll<number>().as('count')])
-        .groupBy('status')
-        .execute(),
-      db.selectFrom('sync_cursor').select(['name', 'cursor', 'updated_at']).execute(),
-      db
-        .selectFrom('video_post_stats as s')
-        .innerJoin('video_post as p', 'p.uri', 's.uri')
-        .leftJoin('actor as a', 'a.did', 'p.author_did')
-        .select([
-          'p.uri',
-          'p.caption',
-          'a.handle',
-          's.like_count',
-          's.view_count',
-          's.avg_completion_rate',
-          's.updated_at',
-        ])
-        .where((eb) => eb.or([eb('s.like_count', '>', 0), eb('s.view_count', '>', 0)]))
-        // The Popular feed's order: likes, then newest.
-        .orderBy('s.like_count', 'desc')
-        .orderBy('s.view_count', 'desc')
-        .orderBy('p.sort_at', 'desc')
-        .limit(8)
-        .execute(),
-      db
-        .selectFrom('watch_event as w')
-        .leftJoin('actor as a', 'a.did', 'w.actor_did')
-        .leftJoin('video_post as p', 'p.uri', 'w.subject_uri')
-        .select([
-          'w.uri',
-          'a.handle as viewer',
-          'w.actor_did',
-          'p.caption',
-          'w.watch_duration_ms',
-          'w.completion_rate',
-          'w.rewatch_count',
-          'w.created_at',
-          'w.indexed_at',
-        ])
-        .orderBy('w.indexed_at', 'desc')
-        .limit(8)
-        .execute(),
-      db
-        .selectFrom('video_like as l')
-        .leftJoin('actor as a', 'a.did', 'l.actor_did')
-        .leftJoin('video_post as p', 'p.uri', 'l.subject_uri')
-        .select([
-          'l.uri',
-          'a.handle as liker',
-          'l.actor_did',
-          'p.caption',
-          'l.created_at',
-          'l.indexed_at',
-        ])
-        .orderBy('l.indexed_at', 'desc')
-        .limit(8)
-        .execute(),
-      db
-        .selectFrom('video_media')
-        .select(['author_did', 'video_cid', 'status', 'attempts', 'last_error', 'updated_at'])
-        .orderBy('updated_at', 'desc')
-        .limit(6)
-        .execute(),
-    ])
-
-  return {
-    at: new Date().toISOString(),
-    counts: counts.rows[0],
-    media: Object.fromEntries(media.map((row) => [row.status, Number(row.count)])),
-    // Jetstream cursors are microseconds since the epoch.
-    cursors: cursors.map((row) => ({
-      name: row.name,
-      eventAt: new Date(Math.floor(row.cursor / 1000)).toISOString(),
-      savedAt: row.updated_at,
-    })),
-    popular,
-    recentWatches,
-    recentLikes,
-    recentJobs,
+/** Handles from the index, cached briefly; traces name accounts by DID. */
+export function handleLookup(db: Kysely<Database>, ttlMs = 60_000) {
+  const cache = new Map<string, { handle: string | undefined; until: number }>()
+  return async (did: string): Promise<string | undefined> => {
+    const hit = cache.get(did)
+    if (hit !== undefined && hit.until > Date.now()) return hit.handle
+    const row = await db
+      .selectFrom('actor')
+      .select('handle')
+      .where('did', '=', did)
+      .executeTakeFirst()
+    const handle = row?.handle ?? undefined
+    cache.set(did, { handle, until: Date.now() + ttlMs })
+    return handle
   }
+}
+
+/** Row counts for the tables the system map draws. */
+export async function tableCounts(db: Kysely<Database>) {
+  const result = await sql<Record<string, number>>`
+    select
+      (select count(*) from actor)::int as actor,
+      (select count(*) from video_post)::int as video_post,
+      (select count(*) from video_like)::int as video_like,
+      (select count(*) from watch_event)::int as watch_event,
+      (select count(*) from video_post_stats)::int as video_post_stats,
+      (select count(*) from video_media)::int as video_media
+  `.execute(db)
+  return { at: new Date().toISOString(), tables: result.rows[0] ?? {} }
 }
