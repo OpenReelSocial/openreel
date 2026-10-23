@@ -1,9 +1,12 @@
+import AVKit
 import OpenReelATProto
 import PhotosUI
 import SwiftUI
 
-/// The Create tab: pick a video from Photos, add a caption and tags, post,
-/// then follow it through upload and processing until it plays in Latest.
+/// The Create tab: pick a video from Photos, watch it play while you write a
+/// caption and tags, post, then follow it through upload and processing until
+/// it plays in Latest. The picked clip leads the screen — a tappable preview
+/// above the caption and tags, with Post pinned to the bottom.
 @MainActor
 struct CreateView: View {
     let store: PostStore
@@ -20,27 +23,18 @@ struct CreateView: View {
 
     var body: some View {
         @Bindable var store = store
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("New post")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(MonoTheme.primary)
-
-                switch store.phase {
-                case let .processing(uri), let .slowProcessing(uri), let .posted(uri):
+        Group {
+            switch store.phase {
+            case let .processing(uri), let .slowProcessing(uri), let .posted(uri):
+                ScrollView {
                     progressCard(uri: uri)
-                default:
-                    form(caption: $store.caption, tags: $store.tagsText)
+                        .padding(20)
                 }
-
-                if let message = store.errorMessage {
-                    errorBanner(message)
-                }
+            default:
+                composer(caption: $store.caption, tags: $store.tagsText)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MonoTheme.background)
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -50,26 +44,34 @@ struct CreateView: View {
         }
     }
 
-    // MARK: - Form
+    // MARK: - Composer
 
     @ViewBuilder
-    private func form(caption: Binding<String>, tags: Binding<String>) -> some View {
+    private func composer(caption: Binding<String>, tags: Binding<String>) -> some View {
         if let video = store.video {
-            preview(video)
+            VStack(spacing: 0) {
+                VideoPreviewPlayer(url: video.fileURL, aspectRatio: video.aspectRatio)
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 380)
+                    .background(Color.black)
+
+                details(video: video, caption: caption, tags: tags)
+            }
+            .safeAreaInset(edge: .bottom) { actionBar }
         } else if store.phase == .loading {
-            placeholder {
+            fullBleed {
                 ProgressView("Loading video…")
                     .tint(MonoTheme.primary)
                     .foregroundStyle(MonoTheme.secondary)
             }
         } else {
             picker {
-                placeholder {
+                fullBleed {
                     VStack(spacing: 10) {
                         Image(systemName: "video.badge.plus")
-                            .font(.system(size: 40, weight: .light))
+                            .font(.system(size: 44, weight: .light))
                         Text("Choose a video")
-                            .font(.headline)
+                            .font(.title3.weight(.semibold))
                         Text("From your library, up to \(VideoPostLimits.maxVideoBytes / 1_000_000) MB")
                             .font(.subheadline)
                             .foregroundStyle(MonoTheme.secondary)
@@ -78,85 +80,96 @@ struct CreateView: View {
                 }
             }
         }
-
-        VStack(alignment: .leading, spacing: 6) {
-            TextField("Write a caption…", text: caption, axis: .vertical)
-                .lineLimit(3...6)
-                .focused($focusedField, equals: .caption)
-                .padding(12)
-                .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
-            Text("\(store.caption.count)/\(VideoPostLimits.maxCaptionGraphemes)")
-                .font(.caption)
-                .foregroundStyle(store.caption.count > VideoPostLimits.maxCaptionGraphemes ? .orange : MonoTheme.secondary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-
-        TextField("#tags", text: tags)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($focusedField, equals: .tags)
-            .padding(12)
-            .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
-
-        if case let .uploading(fraction) = store.phase {
-            VStack(alignment: .leading, spacing: 8) {
-                ProgressView(value: fraction)
-                    .tint(MonoTheme.primary)
-                Text("Uploading… \(Int((fraction * 100).rounded()))%")
-                    .font(.subheadline)
-                    .foregroundStyle(MonoTheme.secondary)
-            }
-        } else {
-            Button {
-                focusedField = nil
-                store.post()
-            } label: {
-                Text("Post")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(MonoTheme.accent)
-            .foregroundStyle(MonoTheme.onAccent)
-            .disabled(!store.canPost)
-        }
     }
 
-    private func preview(_ video: PickedVideo) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            Group {
-                if let image = video.preview {
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "film")
-                        .font(.largeTitle)
+    // MARK: - Details (under the preview)
+
+    @ViewBuilder
+    private func details(video: PickedVideo, caption: Binding<String>, tags: Binding<String>) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(Self.summary(video))
+                    .font(.caption)
+                    .foregroundStyle(MonoTheme.secondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Write a caption…", text: caption, axis: .vertical)
+                        .lineLimit(3...6)
+                        .focused($focusedField, equals: .caption)
+                        .padding(12)
+                        .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
+                    Text("\(store.caption.count)/\(VideoPostLimits.maxCaptionGraphemes)")
+                        .font(.caption)
+                        .foregroundStyle(store.caption.count > VideoPostLimits.maxCaptionGraphemes ? .orange : MonoTheme.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+
+                TextField("#tags", text: tags)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .tags)
+                    .padding(12)
+                    .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
+
+                if let message = store.errorMessage {
+                    errorBanner(message)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: - Action bar (pinned)
+
+    @ViewBuilder
+    private var actionBar: some View {
+        Group {
+            if case let .uploading(fraction) = store.phase {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: fraction)
+                        .tint(MonoTheme.primary)
+                    Text("Uploading… \(Int((fraction * 100).rounded()))%")
+                        .font(.subheadline)
                         .foregroundStyle(MonoTheme.secondary)
                 }
-            }
-            .frame(width: 120, height: 180)
-            .background(MonoTheme.chipFill)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(Self.duration(video.durationMs))
-                    .font(.headline)
-                    .foregroundStyle(MonoTheme.primary)
-                Text(video.byteCount.formatted(.byteCount(style: .file)))
-                    .font(.subheadline)
-                    .foregroundStyle(MonoTheme.secondary)
-                Spacer(minLength: 0)
-                if !store.isBusy {
+            } else {
+                HStack(spacing: 10) {
                     picker {
-                        Label("Choose another", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.subheadline.weight(.medium))
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.headline)
+                            .frame(width: 54, height: 48)
+                            .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 12))
                     }
+                    .accessibilityLabel("Choose another video")
+
+                    Button {
+                        focusedField = nil
+                        store.post()
+                    } label: {
+                        Text("Post")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(MonoTheme.accent)
+                    .foregroundStyle(MonoTheme.onAccent)
+                    .disabled(!store.canPost)
                 }
             }
-            .frame(height: 180)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(MonoTheme.background)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(MonoTheme.primary.opacity(0.1))
+                .frame(height: 0.5)
         }
     }
+
+    // MARK: - Pickers and placeholders
 
     private func picker<Label: View>(@ViewBuilder label: () -> Label) -> some View {
         // `.current` hands over the original file; transcoding to a more
@@ -167,10 +180,11 @@ struct CreateView: View {
             .foregroundStyle(MonoTheme.primary)
     }
 
-    private func placeholder<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func fullBleed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .frame(maxWidth: .infinity, minHeight: 220)
-            .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 14))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(24)
+            .background(MonoTheme.background)
             .contentShape(Rectangle())
     }
 
@@ -233,7 +247,41 @@ struct CreateView: View {
         .font(.subheadline)
     }
 
+    /// "0:47 · 18.3 MB · 9:16" for the line under the preview.
+    private static func summary(_ video: PickedVideo) -> String {
+        var parts = [duration(video.durationMs), video.byteCount.formatted(.byteCount(style: .file))]
+        if let ratio = video.aspectRatio {
+            parts.append("\(ratio.width):\(ratio.height)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private static func duration(_ milliseconds: Int) -> String {
         Duration.milliseconds(milliseconds).formatted(.time(pattern: .minuteSecond))
+    }
+}
+
+/// A tappable preview of the picked clip, sized to the video's aspect ratio so
+/// a portrait reel shows upright. Rebuilds its player when a different clip is
+/// chosen and pauses when it leaves the screen.
+@MainActor
+private struct VideoPreviewPlayer: View {
+    let url: URL
+    let aspectRatio: VideoAspectRatio?
+
+    @State private var player: AVPlayer?
+
+    private var ratio: CGFloat {
+        guard let aspectRatio, aspectRatio.width > 0, aspectRatio.height > 0 else { return 9.0 / 16.0 }
+        return CGFloat(aspectRatio.width) / CGFloat(aspectRatio.height)
+    }
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .aspectRatio(ratio, contentMode: .fit)
+            .onChange(of: url, initial: true) { _, newURL in
+                player = AVPlayer(url: newURL)
+            }
+            .onDisappear { player?.pause() }
     }
 }
