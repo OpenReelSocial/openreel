@@ -913,6 +913,62 @@ export const schemaDict = {
       },
     },
   },
+  SocialOpenreelFeedGetAuthorFeed: {
+    lexicon: 1,
+    id: 'social.openreel.feed.getAuthorFeed',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get one account's video posts from an AppView, newest first, hydrated like getFeed. Posts the AppView cannot play (not indexed yet, media not ready, deleted, or taken down) are omitted; an account with none returns an empty feed.",
+        parameters: {
+          type: 'params',
+          required: ['actor'],
+          properties: {
+            actor: {
+              type: 'string',
+              description: 'DID or handle of the account.',
+              format: 'at-identifier',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 30,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feed'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              feed: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.video.defs#postView',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'NotFound',
+            description: 'The actor is a handle the AppView has not seen.',
+          },
+        ],
+      },
+    },
+  },
   SocialOpenreelFeedGetFeed: {
     lexicon: 1,
     id: 'social.openreel.feed.getFeed',
@@ -1450,6 +1506,7 @@ export const ids = {
   SocialOpenreelFeedDescribeFeedGenerator:
     'social.openreel.feed.describeFeedGenerator',
   SocialOpenreelFeedGenerator: 'social.openreel.feed.generator',
+  SocialOpenreelFeedGetAuthorFeed: 'social.openreel.feed.getAuthorFeed',
   SocialOpenreelFeedGetFeed: 'social.openreel.feed.getFeed',
   SocialOpenreelFeedGetFeedSkeleton: 'social.openreel.feed.getFeedSkeleton',
   SocialOpenreelFeedGetSuggestedFeeds: 'social.openreel.feed.getSuggestedFeeds',

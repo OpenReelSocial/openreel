@@ -23,6 +23,7 @@ import * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/eng
 import * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
 import * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
 import * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
+import * as SocialOpenreelFeedGetAuthorFeed from './types/social/openreel/feed/getAuthorFeed.js'
 import * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 import * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
 import * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
@@ -45,6 +46,7 @@ export * as SocialOpenreelEngagementWatchEvent from './types/social/openreel/eng
 export * as SocialOpenreelFeedDefs from './types/social/openreel/feed/defs.js'
 export * as SocialOpenreelFeedDescribeFeedGenerator from './types/social/openreel/feed/describeFeedGenerator.js'
 export * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/generator.js'
+export * as SocialOpenreelFeedGetAuthorFeed from './types/social/openreel/feed/getAuthorFeed.js'
 export * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 export * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
 export * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
@@ -374,6 +376,17 @@ export class SocialOpenreelFeedNS {
       undefined,
       opts,
     )
+  }
+
+  getAuthorFeed(
+    params?: SocialOpenreelFeedGetAuthorFeed.QueryParams,
+    opts?: SocialOpenreelFeedGetAuthorFeed.CallOptions,
+  ): Promise<SocialOpenreelFeedGetAuthorFeed.Response> {
+    return this._client
+      .call('social.openreel.feed.getAuthorFeed', params, undefined, opts)
+      .catch((e) => {
+        throw SocialOpenreelFeedGetAuthorFeed.toKnownErr(e)
+      })
   }
 
   getFeed(

@@ -149,6 +149,10 @@ flag the change as potentially breaking in the PR rather than deciding alone.
   the AppView hydrates), and `getFeed` returns
   `social.openreel.video.defs#postView`, whose `playlist`/`thumbnail` are
   derived media URLs, not record fields (ADR-0006).
+  `social.openreel.feed.getAuthorFeed` likewise mirrors
+  `app.bsky.feed.getAuthorFeed` (an `actor` DID or handle), but returns the
+  same `postView`s as `getFeed` rather than Bluesky's `feedViewPost`, since
+  there are no reposts or replies to wrap.
 
 - **Feed listing splits like `app.bsky.feed.*`, but carries full views.** A
   generator answers `social.openreel.feed.describeFeedGenerator`; an AppView

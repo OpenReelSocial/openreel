@@ -367,6 +367,44 @@ describe(ids.SocialOpenreelFeedDefs, () => {
   })
 })
 
+describe(ids.SocialOpenreelFeedGetAuthorFeed, () => {
+  const params = (value: Record<string, unknown>) => {
+    try {
+      lexicons.assertValidXrpcParams(ids.SocialOpenreelFeedGetAuthorFeed, value)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('takes a DID or a handle as the actor', () => {
+    expect(params({ actor: sampleDid })).toBe(true)
+    expect(params({ actor: 'alice.openreel.social', limit: 10, cursor: 'x' })).toBe(true)
+  })
+
+  it('requires an actor that is a DID or handle, and a limit of 1-100', () => {
+    expect(params({})).toBe(false)
+    expect(params({ actor: 'not a handle' })).toBe(false)
+    expect(params({ actor: sampleDid, limit: 0 })).toBe(false)
+    expect(params({ actor: sampleDid, limit: 101 })).toBe(false)
+  })
+
+  it('returns post views', () => {
+    const post = {
+      uri: samplePostUri,
+      cid: sampleCid,
+      author: { did: sampleDid },
+      record: lexToJson(videoPost()),
+      playlist: 'https://media.openreel.social/did/cid/playlist.m3u8',
+      indexedAt: '2026-09-15T12:00:01.000Z',
+    }
+    expect(() =>
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedGetAuthorFeed, { feed: [post] }),
+    ).not.toThrow()
+    expect(() => lexicons.assertValidXrpcOutput(ids.SocialOpenreelFeedGetAuthorFeed, {})).toThrow()
+  })
+})
+
 describe(ids.SocialOpenreelFeedGetFeed, () => {
   const postView = (extra: Record<string, unknown> = {}) => ({
     uri: samplePostUri,

@@ -2,6 +2,8 @@ import { purpose, type Database } from '@openreel/db'
 import type { SocialOpenreelVideoDefs } from '@openreel/lexicons'
 import type { Kysely } from 'kysely'
 
+import { decodeCursor, encodeCursor } from './cursor.ts'
+
 export interface CommentsQuery {
   /** AT-URI of the video post. */
   uri: string
@@ -18,24 +20,6 @@ export interface CommentsPage {
 
 /** The video, or the parent comment asked for, is not indexed. */
 export class CommentsNotFoundError extends Error {}
-
-/** A cursor this AppView did not issue. */
-export class InvalidCommentsCursorError extends Error {}
-
-/** Keyset cursor over (sort_at, uri): `<epoch ms>::<uri>`, as the feed generator's. */
-function encodeCursor(sortAt: Date, uri: string): string {
-  return `${sortAt.getTime()}::${uri}`
-}
-
-function decodeCursor(cursor: string): { sortAt: Date; uri: string } {
-  const sep = cursor.indexOf('::')
-  const ms = Number(cursor.slice(0, sep))
-  const uri = cursor.slice(sep + 2)
-  if (sep < 1 || !Number.isSafeInteger(ms) || !uri.startsWith('at://')) {
-    throw new InvalidCommentsCursorError('malformed cursor')
-  }
-  return { sortAt: new Date(ms), uri }
-}
 
 /**
  * One page of a video's comments: top-level comments newest first, or with
