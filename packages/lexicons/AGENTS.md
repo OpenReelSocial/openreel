@@ -141,7 +141,8 @@ flag the change as potentially breaking in the PR rather than deciding alone.
   `app.bsky.feed.like` pointing at a video post would surface in Bluesky's
   AppView as a like of a post it cannot show. It sits beside `watchEvent`
   because both are a viewer's engagement with a video. Post views carry the
-  aggregate as `likeCount`, and `likes` is a feed ranking signal.
+  aggregate as `likeCount`, and likes feed the `likes` and `likeRatio` ranking
+  signals (`social.openreel.feed.defs#rankingWeight`).
 
 - **Feed queries mirror `app.bsky.feed.*`.** `social.openreel.feed.getFeedSkeleton`
   has the shape of `app.bsky.feed.getFeedSkeleton` (generators return URIs,

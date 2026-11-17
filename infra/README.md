@@ -160,6 +160,8 @@ To check the environment from outside, and to seed demo content:
 ```sh
 PUBLIC_URL=https://dev.openreel.social make smoke
 PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-videos
+PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-likes
+PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make seed-views
 PUBLIC_URL=https://dev.openreel.social PDS_ADMIN_PASSWORD=... make e2e-upload
 ```
 
