@@ -3,6 +3,8 @@ import SwiftUI
 /// Author, caption, and moderation labels in the bottom-left of a reel.
 struct ReelInfoView: View {
     let reel: Reel
+    /// Labels to show without blurring, such as misinformation or spam.
+    var badges: [ReelBadge] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -29,10 +31,11 @@ struct ReelInfoView: View {
                     .lineLimit(1)
             }
 
-            ForEach(reel.labels, id: \.self) { label in
+            ForEach(badges, id: \.self) { label in
                 HStack(spacing: 6) {
                     Image(systemName: "shield")
                     Text("\(label.name) · \(label.labeler)")
+                        .lineLimit(1)
                 }
                 .font(.caption)
                 .foregroundStyle(MonoTheme.overlayText)
@@ -46,4 +49,10 @@ struct ReelInfoView: View {
         .foregroundStyle(MonoTheme.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+/// A moderation label shown on a reel, and who applied it.
+struct ReelBadge: Hashable {
+    let name: String
+    let labeler: String
 }

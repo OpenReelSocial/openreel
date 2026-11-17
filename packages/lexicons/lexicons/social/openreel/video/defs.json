@@ -35,7 +35,12 @@
           "description": "Number of accounts the AppView has seen like the post (social.openreel.engagement.like records).",
           "minimum": 0
         },
-        "indexedAt": { "type": "string", "format": "datetime" }
+        "indexedAt": { "type": "string", "format": "datetime" },
+        "labels": {
+          "type": "array",
+          "description": "Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them.",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        }
       }
     },
     "authorView": {

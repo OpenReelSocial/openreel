@@ -7,6 +7,7 @@ struct AccountView: View {
     let session: OAuthSession
     /// Set when the server could not be reached on launch.
     let unavailability: ServerUnavailability?
+    let moderation: ModerationController
     /// Presented modally (with a Done button) rather than as a tab.
     var isSheet = true
 
@@ -39,6 +40,16 @@ struct AccountView: View {
                     if let expiresAt = session.expiresAt {
                         LabeledContent("Token renews", value: expiresAt, format: .relative(presentation: .named))
                     }
+                }
+
+                Section {
+                    NavigationLink {
+                        ModerationSettingsView(moderation: moderation)
+                    } label: {
+                        Label("Moderation", systemImage: "hand.raised")
+                    }
+                } footer: {
+                    Text("Choose what to blur or hide, and see who moderates what you watch.")
                 }
 
                 Section {

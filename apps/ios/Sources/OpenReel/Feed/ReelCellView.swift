@@ -1,4 +1,5 @@
 import AVFoundation
+import OpenReelATProto
 import SwiftUI
 
 struct ReelCellView: View {
@@ -19,13 +20,20 @@ struct ReelCellView: View {
     var isLiked = false
     var likeCount = 0
     var onToggleLike: () -> Void = {}
+    var onAction: (ReelAction) -> Void = { _ in }
+    /// What the viewer's moderation preferences make of the reel's labels.
+    var moderation: ModerationDecision = .none
+    /// Blurred behind a cover the viewer hasn't tapped through.
+    var isCovered = false
+    var sourceName: (ModerationCause) -> String = { $0.source }
+    var onReveal: () -> Void = {}
 
     var body: some View {
         ZStack(alignment: .bottom) {
             HStack(alignment: .bottom, spacing: 12) {
-                ReelInfoView(reel: reel)
+                ReelInfoView(reel: reel, badges: badges)
                 VStack(spacing: -6) {
-                    ReelHeartButton(isLiked: isLiked, onToggleLike: onToggleLike)
+                    ReelHeartButton(isLiked: isLiked, onToggleLike: onToggleLike, onAction: onAction)
                         .accessibilityValue(likeCount == 1 ? "1 like" : "\(likeCount) likes")
                     Text(likeCount, format: .number.notation(.compactName))
                         .font(.footnote.weight(.semibold).monospacedDigit())
@@ -46,12 +54,16 @@ struct ReelCellView: View {
 
             ReelScrubber(player: isFocused ? player : nil, onScrub: onScrub)
         }
+        // Nothing of a covered reel shows until the viewer chooses to see it.
+        .opacity(isCovered ? 0 : 1)
+        .allowsHitTesting(!isCovered)
         .animation(.easeOut(duration: 0.2), value: isScrubbing)
         .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background {
             ZStack {
                 ReelPlayerView(reel: reel, player: player)
+                    .blur(radius: isCovered ? 60 : 0, opaque: true)
                 scrims
                 status
                 if #available(iOS 18.0, *) {
@@ -61,15 +73,28 @@ struct ReelCellView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
+        .overlay {
+            if isCovered {
+                ModerationCoverView(causes: moderation.coverCauses, sourceName: sourceName, onReveal: onReveal)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.25), value: isCovered)
         .accessibilityAction(named: Text(isPaused ? "Play" : "Pause"), onTap)
         .accessibilityAction(named: Text(isSpeedLocked ? "Play at normal speed" : "Play at double speed")) {
             onSpeedLock(!isSpeedLocked)
         }
     }
 
+    private var badges: [ReelBadge] {
+        moderation.badges.map { ReelBadge(name: $0.title, labeler: sourceName($0)) }
+    }
+
     @ViewBuilder
     private var status: some View {
-        if hasFailed {
+        if isCovered {
+            EmptyView()
+        } else if hasFailed {
             Label("This video can't be played right now.", systemImage: "exclamationmark.triangle")
                 .font(.subheadline)
                 .foregroundStyle(MonoTheme.primary)

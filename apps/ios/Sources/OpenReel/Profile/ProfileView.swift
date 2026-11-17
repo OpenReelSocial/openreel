@@ -13,6 +13,7 @@ struct ProfileView: View {
     /// Set when the server could not be reached on launch.
     let unavailability: ServerUnavailability?
     let reels: [Reel]
+    let moderation: ModerationController
 
     @State private var section: ContentTab = .videos
     @State private var isShowingAccount = false
@@ -56,7 +57,7 @@ struct ProfileView: View {
         .background(MonoTheme.background)
         .safeAreaInset(edge: .top, spacing: 0) { topBar }
         .sheet(isPresented: $isShowingAccount) {
-            AccountView(auth: auth, session: session, unavailability: unavailability)
+            AccountView(auth: auth, session: session, unavailability: unavailability, moderation: moderation)
                 .preferredColorScheme(.dark)
         }
     }

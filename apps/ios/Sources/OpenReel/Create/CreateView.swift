@@ -98,6 +98,8 @@ struct CreateView: View {
             .padding(12)
             .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
 
+        contentWarnings
+
         if case let .uploading(fraction) = store.phase {
             VStack(alignment: .leading, spacing: 8) {
                 ProgressView(value: fraction)
@@ -120,6 +122,43 @@ struct CreateView: View {
             .foregroundStyle(MonoTheme.onAccent)
             .disabled(!store.canPost)
         }
+    }
+
+    /// Self-labels: viewers see a blurred cover first and choose to watch.
+    private var contentWarnings: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Content warning")
+                .font(.subheadline.weight(.semibold))
+                .padding(.bottom, 4)
+            ForEach(ContentCategory.selfLabelable) { category in
+                Toggle(isOn: warningBinding(category)) {
+                    Label(category.title, systemImage: category.systemImage)
+                        .font(.subheadline)
+                }
+                .tint(MonoTheme.secondary)
+                .disabled(store.isBusy)
+            }
+            Text("Viewers see a blurred cover first and can choose to watch.")
+                .font(.caption)
+                .foregroundStyle(MonoTheme.secondary)
+                .padding(.top, 4)
+        }
+        .foregroundStyle(MonoTheme.primary)
+        .padding(12)
+        .background(MonoTheme.chipFill, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func warningBinding(_ category: ContentCategory) -> Binding<Bool> {
+        Binding(
+            get: { store.contentWarnings.contains(category) },
+            set: { isOn in
+                if isOn {
+                    store.contentWarnings.insert(category)
+                } else {
+                    store.contentWarnings.remove(category)
+                }
+            }
+        )
     }
 
     private func preview(_ video: PickedVideo) -> some View {

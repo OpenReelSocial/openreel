@@ -1,4 +1,5 @@
 import Foundation
+import OpenReelATProto
 
 /// The OpenReel deployment this build talks to: the PDS and PLC directory it
 /// signs in against (Debug only; see AppAuthConfiguration) and the AppView
@@ -57,6 +58,32 @@ enum Backend {
         // compose.yaml publishes the AppView on 3001 (and media on 3006).
         case .localStack: return URL(string: "http://localhost:3001")!
         }
+    }
+
+    /// DID of OpenReel's baseline labeler (moderation layer 1, project plan
+    /// §5.8.1) for this deployment. The app asks the AppView for its labels
+    /// on every feed read and sends reports to it. `nil` until the labeler
+    /// service exists; see docs/architecture/moderation.md. Debug launches
+    /// from Xcode can try one with `OPENREEL_LABELER_DID`.
+    var baselineLabelerDID: String? {
+        #if DEBUG
+        if let did = ProcessInfo.processInfo.environment["OPENREEL_LABELER_DID"], !did.isEmpty {
+            return did
+        }
+        #endif
+        switch self {
+        case .aws, .devServer, .localStack: return nil
+        }
+    }
+
+    /// Labelers whose labels the AppView should attach. The baseline labeler
+    /// is redacting: posts it hides are dropped rather than sent labeled.
+    var labelers: [LabelerSubscription] {
+        baselineLabelerDID.map { [LabelerSubscription(did: $0, redact: true)] } ?? []
+    }
+
+    func appViewClient() -> AppViewClient {
+        AppViewClient(serviceURL: appViewURL, labelers: labelers)
     }
 
     var isLocal: Bool { self == .localStack }

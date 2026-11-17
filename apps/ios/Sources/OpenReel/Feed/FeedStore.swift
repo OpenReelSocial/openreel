@@ -26,7 +26,9 @@ final class FeedStore {
     private(set) var feeds: [FeedGeneratorView] = []
     /// URI of the feed being shown; `nil` means the AppView's default.
     private(set) var selectedFeedURI: String?
-    private(set) var reels: [Reel] = []
+    /// Everything loaded for the selected feed, including reels the
+    /// viewer's moderation preferences hide.
+    private(set) var loadedReels: [Reel] = []
     /// Set when refreshing or paging fails while reels are already on screen.
     private(set) var pagingError: String?
     /// A reel the view should scroll to, such as a video the viewer just
@@ -40,19 +42,29 @@ final class FeedStore {
 
     @ObservationIgnored private let loadPage: PageLoader
     @ObservationIgnored private let loadFeeds: FeedsLoader
+    let moderation: ModerationController
 
-    init(loadFeeds: @escaping FeedsLoader = { [] }, loadPage: @escaping PageLoader) {
+    init(loadFeeds: @escaping FeedsLoader = { [] }, loadPage: @escaping PageLoader,
+         moderation: ModerationController? = nil) {
         self.loadFeeds = loadFeeds
         self.loadPage = loadPage
+        self.moderation = moderation ?? ModerationController()
     }
 
-    convenience init(client: AppViewClient) {
+    convenience init(client: AppViewClient, moderation: ModerationController) {
         self.init(
             loadFeeds: { try await client.getSuggestedFeeds() },
             loadPage: { feed, cursor in
                 try await client.getFeed(feed: feed, limit: FeedConfiguration.pageSize, cursor: cursor)
-            }
+            },
+            moderation: moderation
         )
+    }
+
+    /// The reels to show: what is loaded, minus what the viewer's moderation
+    /// preferences hide. Changing a preference updates it immediately.
+    var reels: [Reel] {
+        loadedReels.filter { !moderation.isHidden($0) }
     }
 
     var selectedFeed: FeedGeneratorView? {
@@ -69,7 +81,7 @@ final class FeedStore {
     func select(_ feed: FeedGeneratorView) async {
         guard feed.uri != selectedFeedURI else { return }
         selectedFeedURI = feed.uri
-        reels = []
+        loadedReels = []
         cursor = nil
         pagingError = nil
         phase = .loading
@@ -81,7 +93,7 @@ final class FeedStore {
     func showDefaultFeed(revealing reelID: String) async {
         if let defaultFeed = feeds.first, defaultFeed.uri != selectedFeedURI {
             selectedFeedURI = defaultFeed.uri
-            reels = []
+            loadedReels = []
             cursor = nil
             pagingError = nil
             phase = .loading
@@ -104,18 +116,18 @@ final class FeedStore {
         }
         generation += 1
         let current = generation
-        if reels.isEmpty { phase = .loading }
+        if loadedReels.isEmpty { phase = .loading }
         do {
             let (posts, next) = try await fetch(after: nil)
             guard current == generation else { return }
-            reels = Self.unique(posts.map(Reel.init(post:)), excluding: [])
+            loadedReels = Self.unique(posts.map(Reel.init(post:)), excluding: [])
             cursor = next
             pagingError = nil
             phase = .loaded
         } catch {
             guard current == generation else { return }
             let message = UserFacingError.message(for: error)
-            if reels.isEmpty {
+            if loadedReels.isEmpty {
                 phase = .failed(message)
             } else {
                 pagingError = message
@@ -135,7 +147,7 @@ final class FeedStore {
         do {
             let (posts, next) = try await fetch(after: cursor)
             guard current == generation else { return }
-            reels += Self.unique(posts.map(Reel.init(post:)), excluding: Set(reels.map(\.id)))
+            loadedReels += Self.unique(posts.map(Reel.init(post:)), excluding: Set(loadedReels.map(\.id)))
             self.cursor = next
             pagingError = nil
         } catch {
@@ -160,7 +172,8 @@ final class FeedStore {
     }
 
     /// The AppView drops posts it cannot play yet, so a page can come back
-    /// empty with a cursor. Follow a few of those before showing nothing.
+    /// empty with a cursor, and the viewer's preferences can hide every post
+    /// on a page. Follow a few of those before showing nothing.
     private func fetch(after cursor: String?) async throws -> ([VideoPostView], String?) {
         var cursor = cursor
         var posts: [VideoPostView] = []
@@ -169,7 +182,8 @@ final class FeedStore {
             let page = try await loadPage(feed, cursor)
             posts += page.feed
             cursor = page.cursor
-            if !posts.isEmpty || cursor == nil { break }
+            let showsSomething = posts.contains { !moderation.isHidden(Reel(post: $0)) }
+            if showsSomething || cursor == nil { break }
         }
         return (posts, cursor)
     }

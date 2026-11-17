@@ -31,25 +31,32 @@ enum MockReelProvider {
         post(
             rkey: "2",
             handle: "another.bsky.social",
-            caption: "Mock reel #2 — placeholder HLS stream.",
-            playlist: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8"
+            caption: "Mock reel #2 — placeholder HLS stream, labeled adult content by a labeler.",
+            playlist: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8",
+            labels: ["nsfw"]
         ),
         post(
             rkey: "3",
             handle: nil,
-            caption: "Mock reel #3 — same source as #1, author without a handle.",
-            playlist: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8"
+            caption: "Mock reel #3 — same source as #1, author without a handle, labeled misinformation.",
+            playlist: "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8",
+            labels: ["misinformation"]
         ),
     ])
 
-    private static func post(rkey: String, handle: String?, caption: String, playlist: String) -> VideoPostView {
-        VideoPostView(
-            uri: "at://did:plc:mock/social.openreel.video.post/\(rkey)",
+    private static func post(rkey: String, handle: String?, caption: String, playlist: String,
+                             labels: [String] = []) -> VideoPostView {
+        let uri = "at://did:plc:mock/social.openreel.video.post/\(rkey)"
+        return VideoPostView(
+            uri: uri,
             cid: "bafyreimock\(rkey)",
             author: VideoAuthorView(did: "did:plc:mock", handle: handle),
             record: VideoPostRecord(caption: caption, tags: ["preview"]),
             playlist: URL(string: playlist)!,
-            indexedAt: "2026-10-05T00:00:00.000Z"
+            indexedAt: "2026-10-05T00:00:00.000Z",
+            labels: labels.map {
+                ATLabel(src: "did:plc:mocklabeler", uri: uri, val: $0, cts: "2026-10-05T00:00:00.000Z")
+            }
         )
     }
 }

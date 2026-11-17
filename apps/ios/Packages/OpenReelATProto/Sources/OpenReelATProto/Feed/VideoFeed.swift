@@ -19,6 +19,10 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
     /// that does not count likes.
     public let likeCount: Int?
     public let indexedAt: String
+    /// Labels the AppView attached for the post or its author, from the
+    /// labelers the request asked for (`atproto-accept-labelers`). Empty from
+    /// an AppView that does not serve labels.
+    public let labels: [ATLabel]
 
     public var id: String { uri }
 
@@ -32,7 +36,8 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         aspectRatio: VideoAspectRatio? = nil,
         durationMs: Int? = nil,
         likeCount: Int? = nil,
-        indexedAt: String
+        indexedAt: String,
+        labels: [ATLabel] = []
     ) {
         self.uri = uri
         self.cid = cid
@@ -44,10 +49,11 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         self.durationMs = durationMs
         self.likeCount = likeCount
         self.indexedAt = indexedAt
+        self.labels = labels
     }
 
     private enum CodingKeys: String, CodingKey {
-        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, likeCount, indexedAt
+        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, likeCount, indexedAt, labels
     }
 
     public init(from decoder: Decoder) throws {
@@ -62,6 +68,19 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         durationMs = try? container.decodeIfPresent(Int.self, forKey: .durationMs)
         likeCount = try? container.decodeIfPresent(Int.self, forKey: .likeCount)
         indexedAt = try container.decode(String.self, forKey: .indexedAt)
+        // One malformed label drops that label, not the post.
+        labels = (try? container.decodeIfPresent([Lenient<ATLabel>].self, forKey: .labels))?
+            .compactMap(\.value) ?? []
+    }
+}
+
+/// Decodes `Value` if it can and `nil` otherwise, so one bad element of an
+/// array doesn't fail the whole array.
+struct Lenient<Value: Decodable>: Decodable {
+    let value: Value?
+
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
     }
 }
 
@@ -105,21 +124,40 @@ public struct VideoAspectRatio: Codable, Sendable, Equatable {
     }
 }
 
-/// The display fields of a `social.openreel.video.post` record. Blob refs and
-/// self-labels are left out until the client has a use for them.
+/// The display fields of a `social.openreel.video.post` record. Blob refs
+/// are left out until the client has a use for them.
 public struct VideoPostRecord: Decodable, Sendable, Equatable {
     public let caption: String?
     public let tags: [String]?
     public let alt: String?
     public let durationMs: Int?
     public let createdAt: String?
+    /// The author's own content warnings (`com.atproto.label.defs#selfLabels`).
+    public let selfLabels: [String]
 
-    public init(caption: String? = nil, tags: [String]? = nil, alt: String? = nil, durationMs: Int? = nil, createdAt: String? = nil) {
+    public init(caption: String? = nil, tags: [String]? = nil, alt: String? = nil, durationMs: Int? = nil,
+                createdAt: String? = nil, selfLabels: [String] = []) {
         self.caption = caption
         self.tags = tags
         self.alt = alt
         self.durationMs = durationMs
         self.createdAt = createdAt
+        self.selfLabels = selfLabels
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case caption, tags, alt, durationMs, createdAt, labels
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        caption = try container.decodeIfPresent(String.self, forKey: .caption)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        alt = try container.decodeIfPresent(String.self, forKey: .alt)
+        durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        // `labels` is an open union; only self-labels are understood.
+        selfLabels = (try? container.decodeIfPresent(SelfLabels.self, forKey: .labels))?.values ?? []
     }
 }
 
@@ -168,9 +206,16 @@ public struct AppViewClient: Sendable {
     public static let getSuggestedFeedsNSID = "social.openreel.feed.getSuggestedFeeds"
 
     private let xrpc: XRPCClient
+    /// Labelers whose labels to ask for on every read.
+    public let labelers: [LabelerSubscription]
 
-    public init(serviceURL: URL, transport: any HTTPTransport = URLSessionTransport()) {
+    public init(serviceURL: URL, labelers: [LabelerSubscription] = [], transport: any HTTPTransport = URLSessionTransport()) {
         self.xrpc = XRPCClient(serviceURL: serviceURL, transport: transport)
+        self.labelers = labelers
+    }
+
+    private var headers: [String: String] {
+        LabelerSubscription.headerValue(labelers).map { [LabelerSubscription.acceptLabelersHeader: $0] } ?? [:]
     }
 
     public var serviceURL: URL { xrpc.serviceURL }
@@ -184,7 +229,7 @@ public struct AppViewClient: Sendable {
         if let feed { parameters["feed"] = feed }
         if let limit { parameters["limit"] = String(limit) }
         if let cursor { parameters["cursor"] = cursor }
-        return try await xrpc.query(Self.getFeedNSID, parameters: parameters, as: VideoFeedPage.self)
+        return try await xrpc.query(Self.getFeedNSID, parameters: parameters, headers: headers, as: VideoFeedPage.self)
     }
 
     /// The feeds this AppView offers, default first, with how each ranks.
