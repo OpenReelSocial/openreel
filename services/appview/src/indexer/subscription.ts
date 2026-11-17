@@ -7,7 +7,16 @@ import type { Indexer } from './indexer.ts'
 
 const RECONNECT_DELAY_MS = 1_000
 const CURSOR_FLUSH_MS = 1_000
-const CURSOR_NAME = 'appview:jetstream'
+
+/**
+ * Name of the saved cursor for a set of collections. Subscribing to a new
+ * collection starts a new cursor, so the first run replays everything
+ * Jetstream still retains (24 hours by default) and picks up records written
+ * before the AppView indexed that collection. Replays are idempotent.
+ */
+export function cursorName(collections: string[]): string {
+  return `appview:jetstream:${[...collections].sort().join(',')}`
+}
 
 function decode(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8')
@@ -58,6 +67,7 @@ export function subscribeUrl(
 export class JetstreamSubscription {
   readonly #baseUrl: string
   readonly #collections: string[]
+  readonly #cursorName: string
   readonly #db: Kysely<Database>
   readonly #indexer: Indexer
   #socket: WebSocket | undefined
@@ -71,6 +81,7 @@ export class JetstreamSubscription {
   constructor(baseUrl: string, collections: string[], db: Kysely<Database>, indexer: Indexer) {
     this.#baseUrl = baseUrl
     this.#collections = collections
+    this.#cursorName = cursorName(collections)
     this.#db = db
     this.#indexer = indexer
   }
@@ -82,7 +93,7 @@ export class JetstreamSubscription {
       this.#db
         .selectFrom('sync_cursor')
         .select('cursor')
-        .where('name', '=', CURSOR_NAME)
+        .where('name', '=', this.#cursorName)
         .executeTakeFirst(),
     )
     this.#cursor = row?.cursor
@@ -140,7 +151,7 @@ export class JetstreamSubscription {
       await purpose('Persist Jetstream cursor', () =>
         this.#db
           .insertInto('sync_cursor')
-          .values({ name: CURSOR_NAME, cursor })
+          .values({ name: this.#cursorName, cursor })
           .onConflict((oc) => oc.column('name').doUpdateSet({ cursor, updated_at: new Date() }))
           .execute(),
       )

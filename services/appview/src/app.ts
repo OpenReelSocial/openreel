@@ -4,6 +4,7 @@ import { createServiceApp } from '@openreel/service-core'
 import type { Express, Request, Response } from 'express'
 import type { Kysely } from 'kysely'
 
+import { CommentsNotFoundError, getComments, InvalidCommentsCursorError } from './comments.ts'
 import { hydratePosts } from './hydrate.ts'
 import { SkeletonError, type SkeletonSource } from './skeleton.ts'
 
@@ -22,9 +23,9 @@ function xrpcError(res: Response, status: number, error: string, message: string
 }
 
 /** Query-string values arrive as strings; coerce the integer ones before validating. */
-function readParams(req: Request): Record<string, unknown> {
+function readParams(req: Request, names: string[]): Record<string, unknown> {
   const params: Record<string, unknown> = {}
-  for (const name of ['feed', 'cursor', 'limit']) {
+  for (const name of names) {
     const value = req.query[name]
     if (typeof value !== 'string') continue
     params[name] = name === 'limit' && /^\d+$/.test(value) ? Number(value) : value
@@ -40,7 +41,10 @@ export function createApp(deps: AppViewDeps): Express {
   app.get(`/xrpc/${ids.SocialOpenreelFeedGetFeed}`, async (req: Request, res: Response) => {
     let params: { feed?: string; limit?: number; cursor?: string }
     try {
-      params = lexicons.assertValidXrpcParams(ids.SocialOpenreelFeedGetFeed, readParams(req)) as {
+      params = lexicons.assertValidXrpcParams(
+        ids.SocialOpenreelFeedGetFeed,
+        readParams(req, ['feed', 'cursor', 'limit']),
+      ) as {
         feed?: string
         limit?: number
         cursor?: string
@@ -95,6 +99,40 @@ export function createApp(deps: AppViewDeps): Express {
       }
     },
   )
+
+  app.get(`/xrpc/${ids.SocialOpenreelVideoGetComments}`, async (req: Request, res: Response) => {
+    let params: { uri: string; parent?: string; limit?: number; cursor?: string }
+    try {
+      params = lexicons.assertValidXrpcParams(
+        ids.SocialOpenreelVideoGetComments,
+        readParams(req, ['uri', 'parent', 'cursor', 'limit']),
+      ) as { uri: string; parent?: string; limit?: number; cursor?: string }
+    } catch (error) {
+      xrpcError(res, 400, 'InvalidRequest', (error as Error).message)
+      return
+    }
+
+    try {
+      const page = await getComments(deps.db, {
+        uri: params.uri,
+        limit: params.limit ?? 30,
+        ...(params.parent === undefined ? {} : { parent: params.parent }),
+        ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
+      })
+      res.status(200).json(page)
+    } catch (error) {
+      if (error instanceof CommentsNotFoundError) {
+        xrpcError(res, 404, 'NotFound', error.message)
+        return
+      }
+      if (error instanceof InvalidCommentsCursorError) {
+        xrpcError(res, 400, 'InvalidRequest', error.message)
+        return
+      }
+      console.error('[appview] getComments failed:', error)
+      xrpcError(res, 500, 'InternalServerError', 'failed to load comments')
+    }
+  })
 
   return app
 }

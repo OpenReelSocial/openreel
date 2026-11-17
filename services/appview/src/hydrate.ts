@@ -49,6 +49,7 @@ export async function hydratePosts(
       'm.height',
       'm.duration_ms',
       's.like_count',
+      's.comment_count',
     ])
     .where('p.uri', 'in', uris)
     .where('m.status', '=', 'ready')
@@ -76,8 +77,9 @@ export async function hydratePosts(
       view.aspectRatio = { width: row.width / d, height: row.height / d }
     }
     if (row.duration_ms !== null && row.duration_ms > 0) view.durationMs = row.duration_ms
-    // A post nobody has watched or liked has no stats row yet.
+    // A post nobody has watched, liked, or commented on has no stats row yet.
     view.likeCount = row.like_count ?? 0
+    view.commentCount = row.comment_count ?? 0
     views.push(view)
   }
   return views

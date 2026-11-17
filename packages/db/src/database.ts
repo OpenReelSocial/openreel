@@ -29,6 +29,7 @@ export interface Database {
   video_post: VideoPostTable
   watch_event: WatchEventTable
   video_like: VideoLikeTable
+  video_comment: VideoCommentTable
   video_post_stats: VideoPostStatsTable
   video_media: VideoMediaTable
   sync_cursor: SyncCursorTable
@@ -98,8 +99,31 @@ export interface VideoLikeTable {
 }
 
 /**
- * Aggregate engagement per video post, derived from `watch_event` and
- * `video_like`. This is the seam feed generators read from; nothing individual
+ * Index of a `social.openreel.video.comment` record. Only comments whose video
+ * (and, for a reply, whose top-level comment) is indexed are stored.
+ */
+export interface VideoCommentTable {
+  uri: string
+  cid: string
+  author_did: string
+  /** AT-URI of the video post; deleting the post deletes its comments. */
+  subject_uri: string
+  subject_cid: string | null
+  /** AT-URI of the top-level comment this replies to; null for a top-level comment. */
+  parent_uri: string | null
+  text: string
+  /** `createdAt` as claimed by the record. */
+  created_at: Timestamp
+  indexed_at: GeneratedTimestamp
+  /** Display order: the earlier of `created_at` and first-indexed time. */
+  sort_at: GeneratedTimestamp
+  /** The record as indexed (JSON); write it with `JSON.stringify`. */
+  record: ColumnType<Record<string, unknown>, string, string>
+}
+
+/**
+ * Aggregate engagement per video post, derived from `watch_event`,
+ * `video_like`, and `video_comment`. This is the seam feed generators read from; nothing individual
  * is stored here.
  */
 export interface VideoPostStatsTable {
@@ -107,6 +131,8 @@ export interface VideoPostStatsTable {
   view_count: Generated<number>
   /** Distinct accounts that like the post. */
   like_count: Generated<number>
+  /** Indexed comments, top-level and replies together. */
+  comment_count: Generated<number>
   avg_completion_rate: number | null
   updated_at: GeneratedTimestamp
 }

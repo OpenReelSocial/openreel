@@ -2,6 +2,7 @@ import { purpose, traceStep, type Database } from '@openreel/db'
 import type { AtprotoIdentity } from '@openreel/service-core'
 import { sql, type Kysely } from 'kysely'
 
+import { readComment } from './comment.ts'
 import type { AccountEvent, CommitEvent, IdentityEvent, JetstreamEvent } from './events.ts'
 import { readLike } from './like.ts'
 import { readVideoPost } from './video-post.ts'
@@ -10,6 +11,7 @@ import { readWatchEvent } from './watch-event.ts'
 export const VIDEO_POST_COLLECTION = 'social.openreel.video.post'
 export const WATCH_EVENT_COLLECTION = 'social.openreel.engagement.watchEvent'
 export const LIKE_COLLECTION = 'social.openreel.engagement.like'
+export const COMMENT_COLLECTION = 'social.openreel.video.comment'
 
 /** Account statuses whose content must no longer be served. */
 const REMOVED_STATUSES = new Set(['deleted', 'takendown'])
@@ -38,6 +40,7 @@ export class Indexer {
         if (event.commit.collection === VIDEO_POST_COLLECTION) await this.#videoPost(event)
         else if (event.commit.collection === WATCH_EVENT_COLLECTION) await this.#watchEvent(event)
         else if (event.commit.collection === LIKE_COLLECTION) await this.#like(event)
+        else if (event.commit.collection === COMMENT_COLLECTION) await this.#comment(event)
         return
       case 'identity':
         await this.#identityChanged(event)
@@ -201,6 +204,101 @@ export class Indexer {
     })
   }
 
+  async #comment(event: CommitEvent): Promise<void> {
+    const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
+    const remove = async (tx: Kysely<Database>): Promise<void> => {
+      // Replies go with it (foreign key cascade); they share its video.
+      const deleted = await purpose('Delete comment and its replies', () =>
+        tx.deleteFrom('video_comment').where('uri', '=', uri).returning('subject_uri').execute(),
+      )
+      await refreshStats(
+        tx,
+        deleted.map((row) => row.subject_uri),
+      )
+    }
+
+    if (event.commit.operation === 'delete') {
+      await this.#db.transaction().execute(remove)
+      return
+    }
+
+    const fields = event.commit.record && readComment(event.commit.record)
+    if (fields === undefined || event.commit.cid === undefined) {
+      console.warn(`[appview] skipping invalid ${COMMENT_COLLECTION} record ${uri}`)
+      return
+    }
+    const cid = event.commit.cid
+
+    await this.#ensureActor(event.did)
+    await this.#db.transaction().execute(async (tx) => {
+      const subject = await purpose('Look up commented video', () =>
+        tx
+          .selectFrom('video_post')
+          .select('uri')
+          .where('uri', '=', fields.subjectUri)
+          .executeTakeFirst(),
+      )
+      // A reply must point at a top-level comment on the same video.
+      const parent =
+        fields.parentUri === null || fields.parentUri === uri
+          ? undefined
+          : await purpose('Look up parent comment', () =>
+              tx
+                .selectFrom('video_comment')
+                .select('uri')
+                .where('uri', '=', fields.parentUri)
+                .where('subject_uri', '=', fields.subjectUri)
+                .where('parent_uri', 'is', null)
+                .executeTakeFirst(),
+            )
+      if (subject === undefined || (fields.parentUri !== null && parent === undefined)) {
+        // An edit can make an indexed comment inadmissible; drop it then too.
+        console.warn(`[appview] skipping ${COMMENT_COLLECTION} ${uri}: video or parent not indexed`)
+        await remove(tx)
+        return
+      }
+
+      const previous = await purpose('Fetch previous version of comment', () =>
+        tx
+          .selectFrom('video_comment')
+          .select('subject_uri')
+          .where('uri', '=', uri)
+          .executeTakeFirst(),
+      )
+      if (fields.parentUri !== null) {
+        // Threads are one level deep: a comment edited into a reply takes its
+        // own replies with it.
+        await purpose('Delete replies of comment that became a reply', () =>
+          tx.deleteFrom('video_comment').where('parent_uri', '=', uri).execute(),
+        )
+      }
+      const now = new Date()
+      const columns = {
+        cid,
+        subject_uri: fields.subjectUri,
+        subject_cid: fields.subjectCid,
+        parent_uri: fields.parentUri,
+        text: fields.text,
+        created_at: fields.createdAt,
+        record: JSON.stringify(event.commit.record),
+      }
+      await purpose('Upsert comment', () =>
+        tx
+          .insertInto('video_comment')
+          .values({
+            uri,
+            author_did: event.did,
+            sort_at: fields.createdAt < now ? fields.createdAt : now,
+            ...columns,
+          })
+          // An edit keeps its original position.
+          .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
+          .execute(),
+      )
+      await refreshStats(tx, [fields.subjectUri, ...(previous ? [previous.subject_uri] : [])])
+    })
+  }
+
   async #identityChanged(event: IdentityEvent): Promise<void> {
     const handle = event.identity.handle ?? (await this.#resolveHandle(event.did))
     await purpose('Update actor handle', () =>
@@ -217,7 +315,13 @@ export class Indexer {
     if (active || status === undefined || !REMOVED_STATUSES.has(status)) return
     await purpose('Purge content of removed account', () =>
       this.#db.transaction().execute(async (tx) => {
+        // Comments on the account's videos go with them (foreign key cascade).
         await tx.deleteFrom('video_post').where('author_did', '=', event.did).execute()
+        const commented = await tx
+          .deleteFrom('video_comment')
+          .where('author_did', '=', event.did)
+          .returning('subject_uri')
+          .execute()
         const watched = await tx
           .deleteFrom('watch_event')
           .where('actor_did', '=', event.did)
@@ -230,7 +334,7 @@ export class Indexer {
           .execute()
         await refreshStats(
           tx,
-          [...watched, ...liked].map((row) => row.subject_uri),
+          [...watched, ...liked, ...commented].map((row) => row.subject_uri),
         )
       }),
     )
@@ -270,8 +374,8 @@ export class Indexer {
 }
 
 /**
- * Recomputes `video_post_stats` for each post from its indexed watch events
- * and likes. Counting rather than incrementing keeps replays idempotent:
+ * Recomputes `video_post_stats` for each post from its indexed watch events,
+ * likes, and comments. Counting rather than incrementing keeps replays idempotent:
  * indexing the same event twice leaves the same numbers. Posts that are not
  * indexed are skipped (the stats row references the post); indexing the post
  * recounts it.
@@ -281,7 +385,14 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
   if (unique.length === 0) return
   const query = db
     .insertInto('video_post_stats')
-    .columns(['uri', 'view_count', 'avg_completion_rate', 'like_count', 'updated_at'])
+    .columns([
+      'uri',
+      'view_count',
+      'avg_completion_rate',
+      'like_count',
+      'comment_count',
+      'updated_at',
+    ])
     .expression(
       db
         .selectFrom('video_post as p')
@@ -306,6 +417,12 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
               .select(sql<number>`count(distinct l.actor_did)`.as('n'))
               .whereRef('l.subject_uri', '=', 'p.uri')
               .as('like_count'),
+          (eb) =>
+            eb
+              .selectFrom('video_comment as c')
+              .select((c) => c.fn.countAll<number>().as('n'))
+              .whereRef('c.subject_uri', '=', 'p.uri')
+              .as('comment_count'),
           sql<Date>`now()`.as('updated_at'),
         ])
         .where('p.uri', 'in', unique),
@@ -315,8 +432,9 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
         view_count: eb.ref('excluded.view_count'),
         avg_completion_rate: eb.ref('excluded.avg_completion_rate'),
         like_count: eb.ref('excluded.like_count'),
+        comment_count: eb.ref('excluded.comment_count'),
         updated_at: eb.ref('excluded.updated_at'),
       })),
     )
-  await purpose('Recompute post stats (views, likes)', () => query.execute())
+  await purpose('Recompute post stats (views, likes, comments)', () => query.execute())
 }
