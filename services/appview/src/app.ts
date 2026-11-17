@@ -5,7 +5,9 @@ import type { Express, Request, Response } from 'express'
 import type { Kysely } from 'kysely'
 
 import { mountAdmin, type Takedowns } from './admin.ts'
-import { CommentsNotFoundError, getComments, InvalidCommentsCursorError } from './comments.ts'
+import { getAuthorFeed, UnknownActorError } from './author-feed.ts'
+import { CommentsNotFoundError, getComments } from './comments.ts'
+import { InvalidCursorError } from './cursor.ts'
 import { hydratePosts } from './hydrate.ts'
 import { SkeletonError, type SkeletonSource } from './skeleton.ts'
 
@@ -105,6 +107,43 @@ export function createApp(deps: AppViewDeps): Express {
     },
   )
 
+  app.get(`/xrpc/${ids.SocialOpenreelFeedGetAuthorFeed}`, async (req: Request, res: Response) => {
+    let params: { actor: string; limit?: number; cursor?: string }
+    try {
+      params = lexicons.assertValidXrpcParams(
+        ids.SocialOpenreelFeedGetAuthorFeed,
+        readParams(req, ['actor', 'cursor', 'limit']),
+      ) as { actor: string; limit?: number; cursor?: string }
+    } catch (error) {
+      xrpcError(res, 400, 'InvalidRequest', (error as Error).message)
+      return
+    }
+
+    try {
+      const page = await getAuthorFeed(
+        deps.db,
+        {
+          actor: params.actor,
+          limit: params.limit ?? 30,
+          ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
+        },
+        deps.mediaPublicUrl,
+      )
+      res.status(200).json(page)
+    } catch (error) {
+      if (error instanceof UnknownActorError) {
+        xrpcError(res, 404, 'NotFound', error.message)
+        return
+      }
+      if (error instanceof InvalidCursorError) {
+        xrpcError(res, 400, 'InvalidRequest', error.message)
+        return
+      }
+      console.error('[appview] getAuthorFeed failed:', error)
+      xrpcError(res, 500, 'InternalServerError', 'failed to load author feed')
+    }
+  })
+
   app.get(`/xrpc/${ids.SocialOpenreelVideoGetComments}`, async (req: Request, res: Response) => {
     let params: { uri: string; parent?: string; limit?: number; cursor?: string }
     try {
@@ -130,7 +169,7 @@ export function createApp(deps: AppViewDeps): Express {
         xrpcError(res, 404, 'NotFound', error.message)
         return
       }
-      if (error instanceof InvalidCommentsCursorError) {
+      if (error instanceof InvalidCursorError) {
         xrpcError(res, 400, 'InvalidRequest', error.message)
         return
       }

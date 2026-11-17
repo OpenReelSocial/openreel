@@ -12,6 +12,7 @@ export {
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedDescribeFeedGenerator,
   SocialOpenreelFeedGenerator,
+  SocialOpenreelFeedGetAuthorFeed,
   SocialOpenreelFeedGetFeed,
   SocialOpenreelFeedGetFeedSkeleton,
   SocialOpenreelFeedGetSuggestedFeeds,
