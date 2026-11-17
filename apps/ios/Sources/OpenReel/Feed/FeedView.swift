@@ -11,6 +11,7 @@ struct FeedView: View {
 
     @State private var visibleReelID: String?
     @State private var isChoosingFeed = false
+    @State private var reportingReel: Reel?
     /// The 2× badge is briefly confirming a lock; see `isShowingSpeedBadge`.
     @State private var isConfirmingSpeedLock = false
     /// 2× was locked during the current hold, as opposed to a hold that began
@@ -52,11 +53,23 @@ struct FeedView: View {
             FeedPickerView(feeds: store.feeds, selection: store.selectedFeedURI, onSelect: select)
                 .preferredColorScheme(.dark)
         }
-        .onChange(of: isChoosingFeed) { _, isShown in
+        .sheet(item: $reportingReel) { reel in
+            ReportView(reel: reel, moderation: store.moderation)
+                .preferredColorScheme(.dark)
+        }
+        .onChange(of: isShowingSheet) { _, isShown in
             if isShown {
                 playback.suspend(.covered)
             } else {
                 playback.resume(.covered)
+            }
+        }
+        // A blurred reel stays paused, and silent, until the viewer reveals it.
+        .onChange(of: isFocusedReelCovered) { _, isCovered in
+            if isCovered {
+                playback.suspend(.moderated)
+            } else {
+                playback.resume(.moderated)
             }
         }
         .task { await store.loadIfNeeded() }
@@ -80,6 +93,24 @@ struct FeedView: View {
             try? await Task.sleep(for: Self.speedLockConfirmation)
             guard !Task.isCancelled else { return }
             isConfirmingSpeedLock = false
+        }
+    }
+
+    private var isShowingSheet: Bool {
+        isChoosingFeed || reportingReel != nil
+    }
+
+    private var isFocusedReelCovered: Bool {
+        guard let id = playback.focusedID, let reel = store.reels.first(where: { $0.id == id }) else { return false }
+        return store.moderation.isCovered(reel)
+    }
+
+    private func perform(_ action: ReelAction, on reel: Reel) {
+        switch action {
+        case .report:
+            reportingReel = reel
+        case .reply, .repost, .share, .showLess:
+            break
         }
     }
 
@@ -131,7 +162,12 @@ struct FeedView: View {
                             onSpeedLock: playback.lockSpeed,
                             isLiked: likes.isLiked(reel),
                             likeCount: likes.likeCount(reel),
-                            onToggleLike: { likes.toggle(reel) }
+                            onToggleLike: { likes.toggle(reel) },
+                            onAction: { perform($0, on: reel) },
+                            moderation: store.moderation.decision(for: reel),
+                            isCovered: store.moderation.isCovered(reel),
+                            sourceName: store.moderation.sourceName(for:),
+                            onReveal: { store.moderation.reveal(reel) }
                         )
                         .containerRelativeFrame(.vertical)
                         .id(reel.id)

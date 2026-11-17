@@ -22,9 +22,10 @@ struct Reel: Identifiable, Hashable {
     /// own change until the AppView catches up.
     let likeCount: Int
     let accessibilityLabel: String?
-    /// Moderation labels to show on the reel. The AppView does not return
-    /// labels yet, so this is always empty for real posts.
-    var labels: [ContentLabel] = []
+    /// Labels that apply to the post: the AppView's (from the labelers the
+    /// app subscribes to) and the author's own content warnings.
+    /// `ModerationController` decides what they mean for the viewer.
+    var moderationCauses: [ModerationCause] = []
 
     init(post: VideoPostView) {
         id = post.uri
@@ -41,7 +42,15 @@ struct Reel: Identifiable, Hashable {
         durationMs = post.durationMs ?? post.record?.durationMs
         likeCount = post.likeCount ?? 0
         accessibilityLabel = post.record?.alt
+        moderationCauses = ModerationPolicy.causes(
+            labels: post.labels,
+            selfLabels: post.record?.selfLabels ?? [],
+            postURI: post.uri,
+            authorDID: post.author.did
+        )
     }
+
+    var strongRef: StrongRef { StrongRef(uri: id, cid: cid) }
 
     /// Portrait clips fill the screen; landscape and square ones are
     /// letterboxed rather than cropped to a sliver.
@@ -49,10 +58,4 @@ struct Reel: Identifiable, Hashable {
         guard let aspectRatio else { return true }
         return aspectRatio < 0.8
     }
-}
-
-/// A moderation label shown on a reel, and the labeler that applied it.
-struct ContentLabel: Hashable {
-    let name: String
-    let labeler: String
 }

@@ -69,8 +69,13 @@ public struct XRPCClient: Sendable {
         self.http = HTTPClient(transport: transport)
     }
 
-    public func query<Output: Decodable>(_ nsid: String, parameters: [String: String] = [:], as type: Output.Type) async throws -> Output {
-        let response = try await http.send(XRPC.queryRequest(service: serviceURL, nsid: nsid, parameters: parameters))
+    public func query<Output: Decodable>(_ nsid: String, parameters: [String: String] = [:], headers: [String: String] = [:],
+                                         as type: Output.Type) async throws -> Output {
+        var request = XRPC.queryRequest(service: serviceURL, nsid: nsid, parameters: parameters)
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        let response = try await http.send(request)
         return try XRPC.decode(response, as: type)
     }
 

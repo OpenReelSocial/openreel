@@ -10,21 +10,25 @@ public struct NewVideoPostRecord: Encodable, Sendable, Equatable {
     public let aspectRatio: VideoAspectRatio?
     public let caption: String?
     public let tags: [String]?
+    /// Content warnings the author puts on the post, written as
+    /// `com.atproto.label.defs#selfLabels`.
+    public let selfLabels: [String]
     public let createdAt: Date
 
     public init(video: BlobRef, durationMs: Int, aspectRatio: VideoAspectRatio? = nil,
-                caption: String? = nil, tags: [String]? = nil, createdAt: Date = Date()) {
+                caption: String? = nil, tags: [String]? = nil, selfLabels: [String] = [], createdAt: Date = Date()) {
         self.video = video
         self.durationMs = durationMs
         self.aspectRatio = aspectRatio
         self.caption = caption
         self.tags = tags
+        self.selfLabels = selfLabels
         self.createdAt = createdAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case type = "$type"
-        case video, durationMs, aspectRatio, caption, tags, createdAt
+        case video, durationMs, aspectRatio, caption, tags, labels, createdAt
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -36,6 +40,9 @@ public struct NewVideoPostRecord: Encodable, Sendable, Equatable {
         try container.encodeIfPresent(caption, forKey: .caption)
         if let tags, !tags.isEmpty {
             try container.encode(tags, forKey: .tags)
+        }
+        if !selfLabels.isEmpty {
+            try container.encode(SelfLabels(values: selfLabels), forKey: .labels)
         }
         try container.encode(WatchEventRecord.datetime(createdAt), forKey: .createdAt)
     }
@@ -51,6 +58,7 @@ public enum VideoPostError: Error, Equatable, Sendable {
     case captionTooLong(limit: Int)
     case tooManyTags(limit: Int)
     case tagTooLong(String, limit: Int)
+    case tooManySelfLabels(limit: Int)
 }
 
 /// The `social.openreel.video.post` Lexicon's limits.
@@ -77,7 +85,7 @@ public enum VideoPostLimits {
         guard size <= maxVideoBytes else { throw VideoPostError.tooLarge(bytes: size, limit: maxVideoBytes) }
     }
 
-    public static func validateDetails(durationMs: Int, caption: String?, tags: [String]) throws {
+    public static func validateDetails(durationMs: Int, caption: String?, tags: [String], selfLabels: [String] = []) throws {
         guard durationMs >= 1 else { throw VideoPostError.invalidDuration }
         if let caption, caption.count > maxCaptionGraphemes || caption.utf8.count > maxCaptionBytes {
             throw VideoPostError.captionTooLong(limit: maxCaptionGraphemes)
@@ -86,6 +94,9 @@ public enum VideoPostLimits {
         if let long = tags.first(where: { $0.count > maxTagGraphemes || $0.utf8.count > maxTagBytes }) {
             throw VideoPostError.tagTooLong(long, limit: maxTagGraphemes)
         }
+        guard selfLabels.count <= SelfLabels.maxValues,
+              selfLabels.allSatisfy({ !$0.isEmpty && $0.utf8.count <= SelfLabels.maxValueBytes })
+        else { throw VideoPostError.tooManySelfLabels(limit: SelfLabels.maxValues) }
     }
 
     /// Hashtags typed as free text ("#cats dogs, #cats") as the record wants
@@ -133,18 +144,19 @@ extension ATProtoSessionManager {
         aspectRatio: VideoAspectRatio?,
         caption: String? = nil,
         tags: [String] = [],
+        selfLabels: [String] = [],
         createdAt: Date = Date(),
         uploadProgress: UploadProgressHandler? = nil
     ) async throws -> CreateRecordOutput {
         let caption = caption?.trimmingCharacters(in: .whitespacesAndNewlines)
         let captionOrNil = caption?.isEmpty == false ? caption : nil
         try VideoPostLimits.validateVideo(size: data.count, mimeType: mimeType)
-        try VideoPostLimits.validateDetails(durationMs: durationMs, caption: captionOrNil, tags: tags)
+        try VideoPostLimits.validateDetails(durationMs: durationMs, caption: captionOrNil, tags: tags, selfLabels: selfLabels)
 
         let blob = try await uploadBlob(data, mimeType: mimeType, uploadProgress: uploadProgress)
         let record = NewVideoPostRecord(
             video: blob, durationMs: durationMs, aspectRatio: aspectRatio,
-            caption: captionOrNil, tags: tags, createdAt: createdAt
+            caption: captionOrNil, tags: tags, selfLabels: selfLabels, createdAt: createdAt
         )
         return try await createRecord(collection: NewVideoPostRecord.collection, record: record)
     }

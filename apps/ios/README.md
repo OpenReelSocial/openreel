@@ -24,8 +24,8 @@ environment variable.
 
 | Path | Contents |
 | --- | --- |
-| `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), posting videos (`Create/`), and the sign-in / account UI under `Auth/` |
-| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, record writes and blob uploads, and the AppView `getFeed` client. No UI. See ADR-0004 |
+| `Sources/OpenReel/` | App target: feed (`Feed/`), pooled HLS playback (`Player/`), posting videos (`Create/`), content filters, blur covers and reporting (`Moderation/`, see `docs/architecture/moderation.md`), and the sign-in / account UI under `Auth/` |
+| `Packages/OpenReelATProto/` | Local Swift package: identity resolution, AT Protocol OAuth (PAR, PKCE, DPoP), session persistence and refresh, record writes and blob uploads, the AppView `getFeed` client, and moderation labels and reports (`Moderation/`). No UI. See ADR-0004 |
 | `OAuth/ios-client-metadata.json` | The OAuth client-metadata document; must be hosted at `https://openreel.social/oauth/ios-client-metadata.json` for release builds |
 | `Supporting/Info.plist` | URL schemes for the OAuth redirects (release, AWS, Hetzner dev server) and the local-networking ATS exception |
 

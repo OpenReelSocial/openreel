@@ -42,6 +42,8 @@ final class FeedPlaybackController {
         case background
         case covered
         case hidden
+        /// The focused reel is blurred by a content warning.
+        case moderated
     }
 
     /// Players by reel ID. Cells read this to attach a player layer.

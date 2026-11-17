@@ -6,7 +6,8 @@ struct ContentView: View {
     @State private var auth: AuthController
     @State private var likes: LikeStore
     @State private var posts: PostStore
-    @State private var feed = FeedStore(client: AppViewClient(serviceURL: Backend.current.appViewURL))
+    @State private var moderation: ModerationController
+    @State private var feed: FeedStore
     @State private var playback = FeedPlaybackController()
     @State private var selectedTab = AppTab.home
 
@@ -14,7 +15,10 @@ struct ContentView: View {
         let auth = AuthController()
         _auth = State(initialValue: auth)
         _likes = State(initialValue: LikeStore(auth: auth))
-        _posts = State(initialValue: PostStore(auth: auth, appView: AppViewClient(serviceURL: Backend.current.appViewURL)))
+        _posts = State(initialValue: PostStore(auth: auth, appView: Backend.current.appViewClient()))
+        let moderation = ModerationController(auth: auth, baselineLabelerDID: Backend.current.baselineLabelerDID)
+        _moderation = State(initialValue: moderation)
+        _feed = State(initialValue: FeedStore(client: Backend.current.appViewClient(), moderation: moderation))
     }
 
     var body: some View {
@@ -82,7 +86,8 @@ struct ContentView: View {
                 auth: auth,
                 session: session,
                 unavailability: unavailability,
-                reels: feed.reels.filter { $0.authorDID == session.did.rawValue }
+                reels: feed.reels.filter { $0.authorDID == session.did.rawValue },
+                moderation: moderation
             )
         } else {
             PlaceholderTabView(tab: .profile)

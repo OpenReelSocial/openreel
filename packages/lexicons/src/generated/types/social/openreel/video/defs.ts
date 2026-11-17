@@ -10,6 +10,7 @@ import {
   type OmitKey,
 } from '../../../../util.js'
 import type * as SocialOpenreelVideoPost from './post.js'
+import type * as ComAtprotoLabelDefs from '../../../com/atproto/label/defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -33,6 +34,8 @@ export interface PostView {
   /** Number of accounts the AppView has seen like the post (social.openreel.engagement.like records). */
   likeCount?: number
   indexedAt: string
+  /** Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them. */
+  labels?: ComAtprotoLabelDefs.Label[]
 }
 
 const hashPostView = 'postView'

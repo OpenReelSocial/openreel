@@ -1112,6 +1112,15 @@ export const schemaDict = {
             type: 'string',
             format: 'datetime',
           },
+          labels: {
+            type: 'array',
+            description:
+              "Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them.",
+            items: {
+              type: 'ref',
+              ref: 'lex:com.atproto.label.defs#label',
+            },
+          },
         },
       },
       authorView: {

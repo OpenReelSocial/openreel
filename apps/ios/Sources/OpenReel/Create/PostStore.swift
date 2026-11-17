@@ -37,6 +37,8 @@ final class PostStore {
     private(set) var needsSignIn = false
     var caption = ""
     var tagsText = ""
+    /// Content warnings the author puts on the post, written as self-labels.
+    var contentWarnings: Set<ContentCategory> = []
 
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var postTask: Task<Void, Never>?
@@ -54,6 +56,8 @@ final class PostStore {
     }
 
     var tags: [String] { VideoPostLimits.tags(from: tagsText) }
+
+    var selfLabels: [String] { contentWarnings.map(\.labelValue).sorted() }
 
     var isBusy: Bool {
         switch phase {
@@ -104,6 +108,7 @@ final class PostStore {
         video = nil
         caption = ""
         tagsText = ""
+        contentWarnings = []
         errorMessage = nil
         needsSignIn = false
         phase = .idle
@@ -115,8 +120,9 @@ final class PostStore {
         guard let video, canPost else { return }
         let caption = caption
         let tags = tags
+        let selfLabels = selfLabels
         do {
-            try VideoPostLimits.validateDetails(durationMs: video.durationMs, caption: caption, tags: tags)
+            try VideoPostLimits.validateDetails(durationMs: video.durationMs, caption: caption, tags: tags, selfLabels: selfLabels)
         } catch {
             errorMessage = Self.message(for: error)
             return
@@ -142,6 +148,7 @@ final class PostStore {
                     aspectRatio: video.aspectRatio,
                     caption: caption,
                     tags: tags,
+                    selfLabels: selfLabels,
                     uploadProgress: { [weak self] fraction in
                         Task { @MainActor in self?.uploadProgressed(fraction) }
                     }
@@ -161,6 +168,7 @@ final class PostStore {
             self.video = nil
             self.caption = ""
             self.tagsText = ""
+            self.contentWarnings = []
             phase = .processing(uri: output.uri)
             await waitUntilPlayable(output.uri, since: started)
         }
@@ -227,6 +235,8 @@ final class PostStore {
             return "Use up to \(limit) tags."
         case let .tagTooLong(tag, limit):
             return "#\(tag.prefix(20))… is too long; tags can be up to \(limit) characters."
+        case let .tooManySelfLabels(limit):
+            return "Use up to \(limit) content warnings."
         }
     }
 }
