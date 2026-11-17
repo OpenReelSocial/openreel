@@ -58,7 +58,10 @@ of the feed client-side.
 
 ## Backend to do
 
-Roughly in the order that unlocks the most:
+Roughly in the order that unlocks the most. Items 2–4 are proposed in
+[ADR-0009](../adr/0009-ozone-moderation-service.md): upstream Ozone as the
+baseline labeler, report service, and review UI, with the AppView changes it
+needs.
 
 1. ~~**Takedowns (#120).**~~ Done: `make takedown` (procedure in
    `infra/README.md`) calls `com.atproto.admin.updateSubjectStatus` on the PDS
