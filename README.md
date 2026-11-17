@@ -12,6 +12,8 @@ make up          # build and start the full app, data, PDS, and event stack
 make status      # service status; also served at http://localhost:3003
 make demo-pds-event # write a sample profile to the PDS and observe the backend event
 make seed-videos # post generated demo clips and wait until they play in the feed
+make seed-likes  # like those clips from demo accounts so Popular has an order
+make seed-views  # watch and like a few from demo accounts so Trending has an order
 make smoke       # black-box check: health, feed, and playback of the first post
 make e2e-upload  # post one clip and time upload -> in feed -> playable
 make check       # pre-PR gate: format, lint, typecheck, test

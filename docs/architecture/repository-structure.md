@@ -81,7 +81,9 @@ openreel/
 │   ├── github/                # backlog seeding
 │   ├── lib/                   # shared helpers for the deployment scripts
 │   ├── e2e-upload.mjs         # timed upload → feed → playback check
+│   ├── seed-likes.mjs         # demo likes so the Popular feed has an order
 │   ├── seed-videos.mjs        # demo content: upload videos, wait for HLS
+│   ├── seed-views.mjs         # demo watch events and likes so Trending has an order
 │   ├── smoke.mjs              # black-box health/feed/playback check
 │   └── status.sh              # terminal renderer for the admin status API
 ├── .github/                   # templates, CODEOWNERS, workflows
