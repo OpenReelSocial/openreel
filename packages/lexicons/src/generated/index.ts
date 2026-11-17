@@ -26,7 +26,9 @@ import * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/gener
 import * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 import * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
 import * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
+import * as SocialOpenreelVideoComment from './types/social/openreel/video/comment.js'
 import * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
+import * as SocialOpenreelVideoGetComments from './types/social/openreel/video/getComments.js'
 import * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
 export * as ComAtprotoLabelDefs from './types/com/atproto/label/defs.js'
@@ -46,7 +48,9 @@ export * as SocialOpenreelFeedGenerator from './types/social/openreel/feed/gener
 export * as SocialOpenreelFeedGetFeed from './types/social/openreel/feed/getFeed.js'
 export * as SocialOpenreelFeedGetFeedSkeleton from './types/social/openreel/feed/getFeedSkeleton.js'
 export * as SocialOpenreelFeedGetSuggestedFeeds from './types/social/openreel/feed/getSuggestedFeeds.js'
+export * as SocialOpenreelVideoComment from './types/social/openreel/video/comment.js'
 export * as SocialOpenreelVideoDefs from './types/social/openreel/video/defs.js'
+export * as SocialOpenreelVideoGetComments from './types/social/openreel/video/getComments.js'
 export * as SocialOpenreelVideoPost from './types/social/openreel/video/post.js'
 
 export class AtpBaseClient extends XrpcClient {
@@ -492,11 +496,107 @@ export class SocialOpenreelFeedGeneratorRecord {
 
 export class SocialOpenreelVideoNS {
   _client: XrpcClient
+  comment: SocialOpenreelVideoCommentRecord
   post: SocialOpenreelVideoPostRecord
 
   constructor(client: XrpcClient) {
     this._client = client
+    this.comment = new SocialOpenreelVideoCommentRecord(client)
     this.post = new SocialOpenreelVideoPostRecord(client)
+  }
+
+  getComments(
+    params?: SocialOpenreelVideoGetComments.QueryParams,
+    opts?: SocialOpenreelVideoGetComments.CallOptions,
+  ): Promise<SocialOpenreelVideoGetComments.Response> {
+    return this._client
+      .call('social.openreel.video.getComments', params, undefined, opts)
+      .catch((e) => {
+        throw SocialOpenreelVideoGetComments.toKnownErr(e)
+      })
+  }
+}
+
+export class SocialOpenreelVideoCommentRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: SocialOpenreelVideoComment.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'social.openreel.video.comment',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: SocialOpenreelVideoComment.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'social.openreel.video.comment',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<SocialOpenreelVideoComment.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'social.openreel.video.comment'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<SocialOpenreelVideoComment.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'social.openreel.video.comment'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'social.openreel.video.comment', ...params },
+      { headers },
+    )
   }
 }
 

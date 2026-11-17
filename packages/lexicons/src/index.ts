@@ -15,7 +15,9 @@ export {
   SocialOpenreelFeedGetFeed,
   SocialOpenreelFeedGetFeedSkeleton,
   SocialOpenreelFeedGetSuggestedFeeds,
+  SocialOpenreelVideoComment,
   SocialOpenreelVideoDefs,
+  SocialOpenreelVideoGetComments,
   SocialOpenreelVideoPost,
 } from './generated/index.ts'
 export { ids, lexicons, schemaDict, schemas, validate } from './generated/lexicons.ts'

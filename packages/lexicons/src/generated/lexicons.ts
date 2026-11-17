@@ -1055,6 +1055,49 @@ export const schemaDict = {
       },
     },
   },
+  SocialOpenreelVideoComment: {
+    lexicon: 1,
+    id: 'social.openreel.video.comment',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A comment on a video, written to the commenter's own repository; deleting the record removes the comment. Like other repository records it is public. Threads are one level deep: a reply points at the top-level comment it belongs to, and replying to a reply points at that same top-level comment.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'text', 'createdAt'],
+          properties: {
+            subject: {
+              type: 'ref',
+              description:
+                'The social.openreel.video.post the comment is on, pinned to the version seen.',
+              ref: 'lex:com.atproto.repo.strongRef',
+            },
+            parent: {
+              type: 'ref',
+              description:
+                'The top-level social.openreel.video.comment on the same video that this replies to. Omitted for a top-level comment.',
+              ref: 'lex:com.atproto.repo.strongRef',
+            },
+            text: {
+              type: 'string',
+              description: "The comment's text.",
+              minLength: 1,
+              maxGraphemes: 300,
+              maxLength: 3000,
+            },
+            createdAt: {
+              type: 'string',
+              description:
+                'Client-declared timestamp when the comment was written.',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   SocialOpenreelVideoDefs: {
     lexicon: 1,
     id: 'social.openreel.video.defs',
@@ -1108,6 +1151,12 @@ export const schemaDict = {
               'Number of accounts the AppView has seen like the post (social.openreel.engagement.like records).',
             minimum: 0,
           },
+          commentCount: {
+            type: 'integer',
+            description:
+              'Number of comments (top-level and replies) the AppView has indexed on the post (social.openreel.video.comment records).',
+            minimum: 0,
+          },
           indexedAt: {
             type: 'string',
             format: 'datetime',
@@ -1116,6 +1165,49 @@ export const schemaDict = {
             type: 'array',
             description:
               "Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them.",
+            items: {
+              type: 'ref',
+              ref: 'lex:com.atproto.label.defs#label',
+            },
+          },
+        },
+      },
+      commentView: {
+        type: 'object',
+        description: 'A comment hydrated by an AppView.',
+        required: ['uri', 'cid', 'author', 'record', 'indexedAt'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          author: {
+            type: 'ref',
+            ref: 'lex:social.openreel.video.defs#authorView',
+          },
+          record: {
+            type: 'unknown',
+            description:
+              "The social.openreel.video.comment record as stored in the author's repository.",
+          },
+          replyCount: {
+            type: 'integer',
+            description:
+              'Replies the AppView has indexed. Only set on top-level comments.',
+            minimum: 0,
+          },
+          indexedAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+          labels: {
+            type: 'array',
+            description:
+              'Moderation labels on the comment or its author, as on postView.',
             items: {
               type: 'ref',
               ref: 'lex:com.atproto.label.defs#label',
@@ -1137,6 +1229,68 @@ export const schemaDict = {
             format: 'handle',
           },
         },
+      },
+    },
+  },
+  SocialOpenreelVideoGetComments: {
+    lexicon: 1,
+    id: 'social.openreel.video.getComments',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get the comments on a video from an AppView: its top-level comments, or with 'parent' the replies to one of them. Comments the AppView has not indexed, or whose author or record was taken down, are omitted. Ordering is the AppView's choice; the reference AppView returns top-level comments newest first and replies oldest first.",
+        parameters: {
+          type: 'params',
+          required: ['uri'],
+          properties: {
+            uri: {
+              type: 'string',
+              description: 'AT-URI of the social.openreel.video.post.',
+              format: 'at-uri',
+            },
+            parent: {
+              type: 'string',
+              description:
+                'AT-URI of a top-level comment on the video; returns its replies instead of the top-level comments.',
+              format: 'at-uri',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 30,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['comments'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              comments: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:social.openreel.video.defs#commentView',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'NotFound',
+            description: 'The video is not indexed or was removed.',
+          },
+        ],
       },
     },
   },
@@ -1293,6 +1447,8 @@ export const ids = {
   SocialOpenreelFeedGetFeed: 'social.openreel.feed.getFeed',
   SocialOpenreelFeedGetFeedSkeleton: 'social.openreel.feed.getFeedSkeleton',
   SocialOpenreelFeedGetSuggestedFeeds: 'social.openreel.feed.getSuggestedFeeds',
+  SocialOpenreelVideoComment: 'social.openreel.video.comment',
   SocialOpenreelVideoDefs: 'social.openreel.video.defs',
+  SocialOpenreelVideoGetComments: 'social.openreel.video.getComments',
   SocialOpenreelVideoPost: 'social.openreel.video.post',
 } as const

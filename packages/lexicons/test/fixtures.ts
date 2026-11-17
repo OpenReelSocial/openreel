@@ -10,6 +10,7 @@ import type {
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
+  SocialOpenreelVideoComment,
   SocialOpenreelVideoPost,
 } from '../src/index.ts'
 
@@ -58,6 +59,17 @@ export function like(): SocialOpenreelEngagementLike.Record {
     $type: 'social.openreel.engagement.like',
     subject: { uri: samplePostUri, cid: sampleCid },
     createdAt: '2026-09-15T12:06:00.000Z',
+  }
+}
+
+export const sampleCommentUri = `at://${sampleDid}/social.openreel.video.comment/3kbc7ijcn5m3a`
+
+export function comment(): SocialOpenreelVideoComment.Record {
+  return {
+    $type: 'social.openreel.video.comment',
+    subject: { uri: samplePostUri, cid: sampleCid },
+    text: 'Where was this filmed?',
+    createdAt: '2026-09-15T12:07:00.000Z',
   }
 }
 
