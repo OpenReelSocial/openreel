@@ -82,14 +82,30 @@ function decodeOffset(cursor: string): number {
 }
 
 /**
+ * Pseudo-views that pull a post's completion and like ratio toward the site-wide
+ * mean, so a post with one view at 100% (or one viewer who liked it) does not
+ * outrank one with dozens of views. A post with this many views is weighted half
+ * its own rate, half the site's.
+ */
+export const PRIOR_VIEWS = 10
+
+/**
  * Scores every playable post as a weighted sum of signals, each normalized to
  * 0-1 (project plan 5.5.4):
  *
  * - `views`: the post's view count over the highest view count of any
  *   playable post, so the most-viewed post scores 1;
  * - `likes`: likewise for the post's like count;
- * - `recency`: 1 when posted, halving every `halfLifeHours`.
+ * - `recency`: 1 when posted, halving every `halfLifeHours`;
+ * - `completion`: the post's mean completion rate, smoothed toward the site's
+ *   mean by {@link PRIOR_VIEWS};
+ * - `likeRatio`: the share of accounts that shared a watch of the post that
+ *   also like it, smoothed the same way. Only sharing accounts count on both
+ *   sides: views are opt-in and likes are not, so likes over views would favor
+ *   posts whose audience does not share watch history.
  *
+ * A post with no views scores the site mean on the last two (0 when nothing on
+ * the site has views).
  * Ties fall back to newest first. Scores move as views and likes arrive, so the cursor
  * is an offset rather than a keyset: a page can repeat or skip a post whose
  * rank changed since the previous page. Clients already drop repeats.
@@ -101,6 +117,10 @@ export function weighted(weights: SignalWeight[]): Feed {
         return sql<number>`${w.weight} * c.views`
       case 'likes':
         return sql<number>`${w.weight} * c.likes`
+      case 'completion':
+        return sql<number>`${w.weight} * c.completion`
+      case 'likeRatio':
+        return sql<number>`${w.weight} * c.like_ratio`
       case 'recency':
         return sql<number>`${w.weight} * exp(-ln(2) * extract(epoch from (now() - c.sort_at)) / 3600 / ${w.halfLifeHours ?? 24})`
     }
@@ -126,6 +146,18 @@ export function weighted(weights: SignalWeight[]): Feed {
           sql<number>`coalesce(s.like_count, 0)::float8 / greatest(max(coalesce(s.like_count, 0)) over (), 1)`.as(
             'likes',
           ),
+          sql<number>`(coalesce(s.avg_completion_rate, 0) * coalesce(s.view_count, 0)
+            + ${sql.lit(PRIOR_VIEWS)} * coalesce(
+              sum(coalesce(s.avg_completion_rate, 0) * coalesce(s.view_count, 0)) over ()
+                / nullif(sum(coalesce(s.view_count, 0)) over (), 0),
+              0))::float8
+            / (coalesce(s.view_count, 0) + ${sql.lit(PRIOR_VIEWS)})`.as('completion'),
+          sql<number>`(coalesce(s.viewer_like_count, 0)
+            + ${sql.lit(PRIOR_VIEWS)} * coalesce(
+              (sum(coalesce(s.viewer_like_count, 0)) over ())::float8
+                / nullif(sum(coalesce(s.viewer_count, 0)) over (), 0),
+              0))::float8
+            / (coalesce(s.viewer_count, 0) + ${sql.lit(PRIOR_VIEWS)})`.as('like_ratio'),
         ])
         .where('m.status', '=', 'ready')
 

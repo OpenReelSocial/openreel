@@ -276,12 +276,20 @@ export class Indexer {
  * indexed are skipped (the stats row references the post); indexing the post
  * recounts it.
  */
-async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void> {
+export async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void> {
   const unique = [...new Set(uris)]
   if (unique.length === 0) return
   const query = db
     .insertInto('video_post_stats')
-    .columns(['uri', 'view_count', 'avg_completion_rate', 'like_count', 'updated_at'])
+    .columns([
+      'uri',
+      'view_count',
+      'avg_completion_rate',
+      'like_count',
+      'viewer_count',
+      'viewer_like_count',
+      'updated_at',
+    ])
     .expression(
       db
         .selectFrom('video_post as p')
@@ -306,6 +314,30 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
               .select(sql<number>`count(distinct l.actor_did)`.as('n'))
               .whereRef('l.subject_uri', '=', 'p.uri')
               .as('like_count'),
+          // The like ratio's population: accounts that shared a watch of the post,
+          // and those of them that like it. Likes need no opt-in but views do, so
+          // counting every like would favor posts whose viewers do not share.
+          (eb) =>
+            eb
+              .selectFrom('watch_event as w')
+              .select(sql<number>`count(distinct w.actor_did)`.as('n'))
+              .whereRef('w.subject_uri', '=', 'p.uri')
+              .as('viewer_count'),
+          (eb) =>
+            eb
+              .selectFrom('video_like as l')
+              .select(sql<number>`count(distinct l.actor_did)`.as('n'))
+              .whereRef('l.subject_uri', '=', 'p.uri')
+              .where((l) =>
+                l.exists(
+                  l
+                    .selectFrom('watch_event as w')
+                    .select(sql`1`.as('one'))
+                    .whereRef('w.subject_uri', '=', 'p.uri')
+                    .whereRef('w.actor_did', '=', 'l.actor_did'),
+                ),
+              )
+              .as('viewer_like_count'),
           sql<Date>`now()`.as('updated_at'),
         ])
         .where('p.uri', 'in', unique),
@@ -315,8 +347,10 @@ async function refreshStats(db: Kysely<Database>, uris: string[]): Promise<void>
         view_count: eb.ref('excluded.view_count'),
         avg_completion_rate: eb.ref('excluded.avg_completion_rate'),
         like_count: eb.ref('excluded.like_count'),
+        viewer_count: eb.ref('excluded.viewer_count'),
+        viewer_like_count: eb.ref('excluded.viewer_like_count'),
         updated_at: eb.ref('excluded.updated_at'),
       })),
     )
-  await purpose('Recompute post stats (views, likes)', () => query.execute())
+  await purpose('Recompute post stats (views, likes, like-ratio counts)', () => query.execute())
 }

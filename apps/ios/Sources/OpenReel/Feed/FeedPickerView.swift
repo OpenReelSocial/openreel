@@ -94,6 +94,10 @@ private struct FeedDescriptionRow: View {
         case "recency":
             let halfLife = weight.halfLifeHours.map { ", halves every \($0) h" } ?? ""
             return "\(percent) · Recency\(halfLife)"
+        case "completion":
+            return "\(percent) · Completion"
+        case "likeRatio":
+            return "\(percent) · Like ratio"
         default:
             return "\(percent) · \(weight.signal.capitalized)"
         }

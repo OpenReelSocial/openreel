@@ -107,6 +107,10 @@ export interface VideoPostStatsTable {
   view_count: Generated<number>
   /** Distinct accounts that like the post. */
   like_count: Generated<number>
+  /** Distinct accounts that shared a watch of the post (opted in to watch history). */
+  viewer_count: Generated<number>
+  /** How many of those `viewer_count` accounts also like the post. */
+  viewer_like_count: Generated<number>
   avg_completion_rate: number | null
   updated_at: GeneratedTimestamp
 }
