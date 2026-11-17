@@ -69,10 +69,10 @@ needs.
    likes) and won't index it again, and the media worker deletes the renditions
    and invalidates them on CloudFront. The client needs nothing extra: a post
    the AppView stops returning disappears from the feed.
-2. **Reports reach someone.** Set `PDS_REPORT_SERVICE_URL` and
-   `PDS_REPORT_SERVICE_DID` on the PDS to the moderation service (an Ozone
-   instance is the least work). Until then, Report shows "Reporting isn't set
-   up on this server yet."
+2. ~~**Reports reach someone.**~~ Done on AWS (ADR-0009, phase 1): the PDS
+   forwards reports to Ozone, and `make aws-reports` lists them. Until the
+   `OZONE_SIGNING_KEY_HEX` parameter exists, and locally, Report still shows
+   "Reporting isn't set up on this server yet."
 3. **Baseline labeler** (`services/labeler/`, per #120's follow-up). Needs a DID
    whose document has an `#atproto_labeler` service and an `#atproto_label`
    signing key, and must serve `com.atproto.label.subscribeLabels` /

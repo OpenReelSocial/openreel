@@ -175,6 +175,10 @@ infra-diff: ## Compare the AWS CDK app with what is deployed (needs AWS_PROFILE)
 aws-plc-token: ## Print the PLC token the AWS PDS issued to DID= for migrate-account (needs AWS_PROFILE)
 	infra/scripts/host-run.sh infra/aws/scripts/plc-token.sh DID=$(DID) SERVICE=$(or $(SERVICE),pds)
 
+.PHONY: aws-reports
+aws-reports: ## List the newest user reports Ozone received on AWS (LIMIT=25; needs AWS_PROFILE)
+	infra/scripts/host-run.sh infra/aws/scripts/reports.sh LIMIT=$(or $(LIMIT),25)
+
 .PHONY: aws-backup
 aws-backup: ## Back up the AWS host's PDS, PLC, and AppView data to S3 (needs AWS_PROFILE)
 	infra/scripts/host-run.sh infra/aws/scripts/backup.sh \

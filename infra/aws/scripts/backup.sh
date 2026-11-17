@@ -32,6 +32,8 @@ cd "$OPENREEL_DIR"
   echo "error: no deployment in $OPENREEL_DIR; deploy first" >&2
   exit 1
 }
+# Ozone (ADR-0009) keeps its reports in the same Postgres, when it runs.
+grep -qE '^COMPOSE_PROFILES=.*ozone' .env && writers+=(ozone)
 hostname="$(sed -n 's/^PDS_HOSTNAME=//p' .env)"
 sha="$(sed -n 's/^IMAGE_TAG=//p' .env)"
 dest="s3://$BACKUP_BUCKET/$BACKUP_PREFIX"
