@@ -21,6 +21,20 @@ enum MockReelProvider {
         ),
     ]
 
+    /// Feeds a third-party generator at `feeds.example.com` might serve.
+    static let externalFeeds = [
+        FeedGeneratorView(
+            uri: "at://feeds.example.com/social.openreel.feed.generator/slow-tv",
+            displayName: "Slow TV",
+            description: "Long, calm videos people watch to the end.",
+            rankingCriteria: "heuristic",
+            weights: [
+                RankingWeight(signal: "completion", weightBps: 8_000),
+                RankingWeight(signal: "recency", weightBps: 2_000, halfLifeHours: 72),
+            ]
+        ),
+    ]
+
     static let page = VideoFeedPage(feed: [
         post(
             rkey: "1",

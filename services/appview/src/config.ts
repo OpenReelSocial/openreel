@@ -8,6 +8,12 @@ export interface AppViewConfig {
   feedgenUrl: string
   /** Feed used when getFeed is called without `feed`. */
   defaultFeedUri: string
+  /**
+   * Whether getFeed serves feeds from other generators, fetched from the feed
+   * URI's own host (docs/architecture/feeds.md). `EXTERNAL_FEEDS=off` turns
+   * it off.
+   */
+  externalFeeds: boolean
   /** Public base URL the media pipeline's output is served from. */
   mediaPublicUrl: string
   /** Basic-auth password for `com.atproto.admin.*`; unset disables them. */
@@ -28,6 +34,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppViewConfig 
     feedgenUrl: (env['FEEDGEN_URL'] ?? 'http://localhost:3002').replace(/\/+$/, ''),
     defaultFeedUri:
       env['DEFAULT_FEED_URI'] ?? 'at://openreel.social/social.openreel.feed.generator/recent',
+    externalFeeds: env['EXTERNAL_FEEDS']?.trim().toLowerCase() !== 'off',
     mediaPublicUrl: (env['MEDIA_PUBLIC_URL'] ?? 'http://localhost:3006').replace(/\/+$/, ''),
     adminPassword: env['ADMIN_PASSWORD']?.trim() || undefined,
   }
