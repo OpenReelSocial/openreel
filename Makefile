@@ -136,6 +136,10 @@ seed-likes: ## Like the feed's videos from demo accounts so Popular has an order
 takedown: ## Take down SUBJECT (a DID or AT-URI) on the PDS and AppView; REVERSE=1 lifts it
 	node scripts/takedown.mjs
 
+.PHONY: seed-views
+seed-views: ## Watch and like a few videos from demo accounts so Trending has an order
+	node scripts/seed-views.mjs
+
 .PHONY: smoke
 smoke: ## Check a running deployment end to end from outside (PUBLIC_URL, default local)
 	node scripts/smoke.mjs

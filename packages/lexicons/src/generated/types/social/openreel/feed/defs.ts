@@ -47,8 +47,9 @@ export function validateGeneratorView<V>(v: V) {
 /** One term of a weighted feed's score. Each signal is normalized to 0-1 before weighting. */
 export interface RankingWeight {
   $type?: 'social.openreel.feed.defs#rankingWeight'
-  /** 'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'likes' is its like count (indexed social.openreel.engagement.like records) relative to the most-liked post; 'recency' decays from 1 by half every halfLifeHours. */
-  signal: 'views' | 'likes' | 'recency' | (string & {})
+  /** 'views' is a post's view count (indexed social.openreel.engagement.watchEvent records) relative to the most-viewed post; 'likes' is its like count (indexed social.openreel.engagement.like records) relative to the most-liked post; 'recency' decays from 1 by half every halfLifeHours; 'completion' is its mean completion rate; 'likeRatio' is the share of accounts that published a watch event for it that also like it, so likes from accounts that do not publish watch events are not counted. Generators may smooth 'completion' and 'likeRatio' toward a site-wide mean for posts with few views. */
+  signal:
+    'views' | 'likes' | 'recency' | 'completion' | 'likeRatio' | (string & {})
   /** Share of the score in basis points; a feed's weights sum to 10000. */
   weightBps: number
   /** For time-decayed signals such as 'recency': hours for the signal to fall by half. */
