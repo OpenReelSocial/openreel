@@ -156,6 +156,46 @@ describe.skipIf(!hasDb)('migrations against Postgres', () => {
     expect(count.n).toBe(0)
   })
 
+  it('backfills like-ratio counts from existing watch events and likes', async () => {
+    const migrator = createMigrator(db)
+    expect((await migrator.migrateTo('0005_moderation')).error).toBeUndefined()
+
+    const author = 'did:plc:backfilltest0000000000001'
+    const sharer = 'did:plc:backfilltest0000000000002'
+    const lurker = 'did:plc:backfilltest0000000000003'
+    const postUri = `at://${author}/social.openreel.video.post/1`
+    // The typed layer knows the latest schema; before 0006 the new columns do not exist yet.
+    await sql`
+      insert into actor (did) values (${author}), (${sharer}), (${lurker});
+    `.execute(db)
+    await sql`
+      insert into video_post (uri, cid, author_did, created_at)
+      values (${postUri}, 'c', ${author}, now())
+    `.execute(db)
+    await sql`
+      insert into watch_event (uri, cid, actor_did, subject_uri, created_at) values
+        (${`at://${sharer}/w/1`}, 'c', ${sharer}, ${postUri}, now()),
+        (${`at://${sharer}/w/2`}, 'c', ${sharer}, ${postUri}, now())
+    `.execute(db)
+    await sql`
+      insert into video_like (uri, cid, actor_did, subject_uri, created_at) values
+        (${`at://${sharer}/l/1`}, 'c', ${sharer}, ${postUri}, now()),
+        (${`at://${lurker}/l/1`}, 'c', ${lurker}, ${postUri}, now())
+    `.execute(db)
+    await sql`
+      insert into video_post_stats (uri, view_count, like_count) values (${postUri}, 2, 2)
+    `.execute(db)
+
+    await migrateToLatest(db)
+
+    const row = await db
+      .selectFrom('video_post_stats')
+      .select(['viewer_count', 'viewer_like_count'])
+      .where('uri', '=', postUri)
+      .executeTakeFirstOrThrow()
+    expect(row).toEqual({ viewer_count: 1, viewer_like_count: 1 })
+  })
+
   it('migrates all the way down', async () => {
     const { error } = await createMigrator(db).migrateTo(NO_MIGRATIONS)
 

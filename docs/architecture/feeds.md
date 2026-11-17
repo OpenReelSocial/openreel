@@ -28,12 +28,13 @@ startup and refuses to start if it is invalid.
 {
   "id": "trending",
   "displayName": "Trending",
-  "description": "Popular videos, favoring recent ones.",
+  "description": "Videos people watch to the end and like, favoring new ones.",
   "rankingCriteria": "heuristic",
   "ranking": {
     "type": "weighted",
     "weights": [
-      { "signal": "views", "weight": 0.7 },
+      { "signal": "completion", "weight": 0.4 },
+      { "signal": "likeRatio", "weight": 0.3 },
       { "signal": "recency", "weight": 0.3, "halfLifeHours": 24 }
     ]
   }
@@ -57,29 +58,57 @@ and no app release.
 
 Each signal is normalized to 0-1 before it is weighted:
 
-| Signal    | Value                                                                     |
-| --------- | ------------------------------------------------------------------------- |
-| `views`   | The post's view count divided by the highest view count of any playable post |
-| `likes`   | The post's like count divided by the highest like count of any playable post |
-| `recency` | `0.5 ^ (hours since posted / halfLifeHours)`                              |
+| Signal       | Value                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| `views`      | The post's view count divided by the highest view count of any playable post           |
+| `likes`      | The post's like count divided by the highest like count of any playable post           |
+| `recency`    | `0.5 ^ (hours since posted / halfLifeHours)`                                           |
+| `completion` | `(avg completion × views + k × site completion) / (views + k)`                         |
+| `likeRatio`  | `(likes from sharing viewers + k × site ratio) / (sharing viewers + k)`                |
 
 Ties go to the newer post. Weighted feeds page by offset, so a post whose rank
 changes between pages can repeat or be skipped. The app drops repeats.
 
-The plan's Trending formula (`0.4 completion + 0.3 like ratio + 0.3 recency`)
-is not available yet. Likes are a raw count rather than a ratio to views, and
-completion rate is stored (`video_post_stats.avg_completion_rate`) but is not
-a signal yet.
+#### Completion and like ratio
+
+Both are averages, and an average over a handful of views is noise: one view at
+100% would otherwise beat forty views at 90%. Each is smoothed toward the site's
+mean as if the post had `k = 10` extra views at that mean (`PRIOR_VIEWS` in
+`services/feedgen/src/feeds.ts`). A post with no views scores the site mean; at
+ten views it is half its own rate and half the site's. When nothing on the site
+has views, both signals are 0 for every post.
+
+- **`completion`** is `video_post_stats.avg_completion_rate`, the mean over the
+  post's watch events of watched time over video length, capped at 1 per event.
+  The site completion is the mean over every watch event.
+- **`likeRatio`** counts only accounts that shared a watch of the post
+  (`viewer_count`), and how many of them also like it (`viewer_like_count`). A
+  rewatch does not count twice.
+
+The like ratio deliberately leaves out likes from everyone else. Likes need no
+opt-in but views do (see [Consent](#consent)), so likes over views would mix two
+audiences. A post whose viewers mostly do not share watch history would score a
+high ratio because of who its audience is, not how they responded. Counting
+both sides within the viewers who share avoids that. The cost is that the ratio
+rests on fewer accounts, and until more viewers opt in, most posts sit near the
+site mean.
+
+`social.openreel.engagement.completionRate#likeRatioBps` describes a raw
+likes-to-views aggregate. Nothing serves it yet, and it is not this signal.
 
 ### Shipped feeds
 
-| Feed    | Ranking                             |
-| ------- | ----------------------------------- |
-| Latest  | Chronological, every playable video |
-| Popular | Weighted, 100% likes                |
+| Feed     | Ranking                                                                  |
+| -------- | ------------------------------------------------------------------------ |
+| Latest   | Chronological, every playable video                                      |
+| Popular  | Weighted, 100% likes                                                     |
+| Trending | Weighted, 40% completion, 30% like ratio, 30% recency (halves every 24 h) |
+
+Trending is the plan's heuristic feed (project plan 5.5.3). It uses only public
+aggregates, so its `rankingCriteria` is `heuristic`.
 
 A feed ranked by views (`{ "signal": "views", "weight": 1 }`) still works; it
-is not shipped because the demo offers two feeds.
+is not shipped.
 
 ## Where views come from
 
@@ -90,6 +119,9 @@ is not shipped because the demo offers two feeds.
    `watch_event`. It then recounts the post's `video_post_stats` (`view_count`
    and `avg_completion_rate`) from scratch, so replays and deletes stay
    correct.
+   It also counts the distinct accounts that shared a watch (`viewer_count`)
+   and how many of them like the post (`viewer_like_count`), for the
+   `likeRatio` signal.
 3. Feedgen reads `video_post_stats` when it ranks.
 
 The watched time comes from playback position and loop count, not wall-clock
@@ -114,8 +146,11 @@ or one who has not opted in, adds no views.
    `video_like`, then recounts `video_post_stats.like_count` as the number of
    **distinct** accounts that like the post, so a second like from the same
    account does not count twice.
-3. Feedgen reads `like_count` for the `likes` signal, and the AppView returns
-   it as `likeCount` on every post view.
+   It also recounts `viewer_like_count`, the likes from accounts that shared a
+   watch of the post.
+3. Feedgen reads `like_count` for the `likes` signal and `viewer_like_count`
+   for `likeRatio`. The AppView returns `like_count` as `likeCount` on every
+   post view.
 
 Which posts the viewer has liked comes from their own repository
 (`com.atproto.repo.listRecords`), not the AppView, so the app needs no
@@ -130,5 +165,18 @@ opt-in. It is visible to anyone, as likes are on Bluesky.
 - Following and Social Discovery feeds: the follow graph is not indexed.
 - Publishing `social.openreel.feed.generator` records. Until they exist, feedgen
   describes its own feeds and does not verify a feed URI's authority.
-- Completion, and likes as a ratio to views, as ranking signals.
-- Personalized or opt-in feeds (plan tier 2) and third-party generators.
+- Personalized or opt-in feeds (plan tier 2, "For You") and third-party
+  generators. Tier 2 changes what data a generator sees, so it needs an ADR
+  first.
+- Stable paging for weighted feeds. They page by offset over live scores, so a
+  page can repeat or skip a post.
+- Precomputed scores. Every request scores every playable post. At larger
+  scale, feeds would score on a schedule and page over stored scores.
+
+## Trying it locally
+
+With the local stack running (`make up`), run `make seed-videos`, then
+`make seed-likes` for Popular and `make seed-views` for Trending.
+`seed-views` has demo accounts watch three of the newest videos to different
+lengths, and like them at different rates. It then waits until Trending ranks
+them in that order. Open the feed picker in the app to switch feeds.

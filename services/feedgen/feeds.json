@@ -16,6 +16,20 @@
         "type": "weighted",
         "weights": [{ "signal": "likes", "weight": 1 }]
       }
+    },
+    {
+      "id": "trending",
+      "displayName": "Trending",
+      "description": "Videos people watch to the end and like, favoring new ones. Completion and like ratio come only from viewers who chose to share watch history; videos with few views count as average.",
+      "rankingCriteria": "heuristic",
+      "ranking": {
+        "type": "weighted",
+        "weights": [
+          { "signal": "completion", "weight": 0.4 },
+          { "signal": "likeRatio", "weight": 0.3 },
+          { "signal": "recency", "weight": 0.3, "halfLifeHours": 24 }
+        ]
+      }
     }
   ]
 }

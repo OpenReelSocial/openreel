@@ -18,7 +18,17 @@ function feedsFile(ranking: unknown) {
 describe('feeds file', () => {
   it('ships a valid default with Latest first', () => {
     const feeds = loadFeeds()
-    expect(feeds.map((f) => f.id)).toEqual(['recent', 'popular'])
+    expect(feeds.map((f) => f.id)).toEqual(['recent', 'popular', 'trending'])
+  })
+
+  it('accepts a weighted feed by completion and like ratio', () => {
+    const weights = [
+      { signal: 'completion', weight: 0.4 },
+      { signal: 'likeRatio', weight: 0.3 },
+      { signal: 'recency', weight: 0.3, halfLifeHours: 24 },
+    ]
+    const [feed] = parseFeeds(feedsFile({ type: 'weighted', weights }))
+    expect(feed?.ranking).toEqual({ type: 'weighted', weights })
   })
 
   it('accepts a weighted feed ranked by likes', () => {
@@ -60,6 +70,11 @@ describe('feeds file', () => {
       'sum to 1',
     ],
     [
+      'a half-life on a signal other than recency',
+      { type: 'weighted', weights: [{ signal: 'completion', weight: 1, halfLifeHours: 24 }] },
+      'only applies to recency',
+    ],
+    [
       'recency without a half-life',
       { type: 'weighted', weights: [{ signal: 'recency', weight: 1 }] },
       'halfLifeHours',
@@ -96,6 +111,16 @@ describe('GET describeFeedGenerator', () => {
         displayName: 'Popular',
         rankingCriteria: 'heuristic',
         weights: [{ signal: 'likes', weightBps: 10_000 }],
+      }),
+      expect.objectContaining({
+        uri: 'at://openreel.social/social.openreel.feed.generator/trending',
+        displayName: 'Trending',
+        rankingCriteria: 'heuristic',
+        weights: [
+          { signal: 'completion', weightBps: 4_000 },
+          { signal: 'likeRatio', weightBps: 3_000 },
+          { signal: 'recency', weightBps: 3_000, halfLifeHours: 24 },
+        ],
       }),
     ])
     expect(body.feeds[0]).not.toHaveProperty('weights')
