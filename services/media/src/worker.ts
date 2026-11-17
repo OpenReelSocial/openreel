@@ -6,7 +6,16 @@ import type { AtprotoIdentity } from '@openreel/service-core'
 import type { Kysely } from 'kysely'
 
 import type { BlobFetcher } from './blob.ts'
-import { claimJob, completeJob, failJob, type Job } from './jobs.ts'
+import type { CdnInvalidator } from './cdn.ts'
+import {
+  claimJob,
+  claimRemoval,
+  completeJob,
+  completeRemoval,
+  failJob,
+  type Job,
+  type Removal,
+} from './jobs.ts'
 import type { MediaStore } from './store.ts'
 import type { TranscodeResult } from './transcode.ts'
 
@@ -15,6 +24,8 @@ export interface WorkerDeps {
   identity: { resolve(did: string): Promise<AtprotoIdentity> }
   blobs: Pick<BlobFetcher, 'download'>
   store: MediaStore
+  /** The CDN in front of `store`, if any; removed renditions are evicted from it. */
+  cdn?: CdnInvalidator
   transcode: (input: string, outDir: string) => Promise<TranscodeResult>
   maxAttempts: number
   pollIntervalMs: number
@@ -24,6 +35,8 @@ export interface WorkerDeps {
  * Polls the `video_media` queue and turns each claimed blob into published
  * HLS renditions: resolve the author's PDS, download and verify the blob,
  * transcode, publish. One job at a time; ffmpeg already uses every core.
+ * Removals (deleted or taken-down posts) go first: they are quick, and a
+ * takedown should not wait behind a transcode backlog.
  */
 export class Worker {
   readonly #deps: WorkerDeps
@@ -49,6 +62,15 @@ export class Worker {
 
   /** Claims and processes one job; returns false when the queue was empty. */
   async runOnce(): Promise<boolean> {
+    const removal = await claimRemoval(this.#deps.db)
+    if (removal !== undefined) {
+      await traceRoot(
+        { kind: 'job', name: 'remove', did: removal.authorDid, subject: removal.videoCid },
+        () => this.#remove(removal),
+      )
+      return true
+    }
+
     const job = await claimJob(this.#deps.db, this.#deps.maxAttempts)
     if (job === undefined) return false
     await traceRoot(
@@ -120,6 +142,32 @@ export class Worker {
       await failJob(db, job, message)
     } finally {
       if (work !== undefined) await store.discard(work)
+    }
+  }
+
+  /**
+   * Deletes a blob's renditions from the store, then from the CDN cache. On
+   * failure the claim lapses and the removal is retried.
+   */
+  async #remove(removal: Removal): Promise<void> {
+    const { store, cdn, db } = this.#deps
+    const label = `${removal.authorDid}/${removal.videoCid}`
+    try {
+      await traceStep('Delete renditions', { kind: 'store', target: store.name }, () =>
+        store.remove(removal.authorDid, removal.videoCid),
+      )
+      if (cdn !== undefined) {
+        await traceStep(
+          'Invalidate CDN cache',
+          { kind: 'call', target: 'cdn', method: 'POST', path: `/${label}/*` },
+          () => cdn.invalidate(removal.authorDid, removal.videoCid),
+        )
+      }
+      await completeRemoval(db, removal)
+      console.log(`[media] removed ${label}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`[media] removing ${label} failed, will retry: ${message}`)
     }
   }
 }

@@ -67,9 +67,13 @@ export class Media extends Construct {
     })
   }
 
-  /** What the media worker needs: write, replace, and remove renditions. */
+  /**
+   * What the media worker needs: write, replace, and remove renditions, and
+   * evict removed ones from this distribution's cache (#120).
+   */
   grantPublish(grantee: IGrantable): void {
     this.bucket.grantReadWrite(grantee)
     this.bucket.grantDelete(grantee)
+    this.distribution.grantCreateInvalidation(grantee)
   }
 }

@@ -147,6 +147,20 @@ describe('media', () => {
     dev.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1)
   })
 
+  it('lets the host invalidate only the media distribution', () => {
+    const statements = Object.values(dev.findResources('AWS::IAM::Policy')).flatMap(
+      (policy) =>
+        (policy as { Properties: { PolicyDocument: { Statement: Record<string, unknown>[] } } })
+          .Properties.PolicyDocument.Statement,
+    )
+    const invalidations = statements.filter((statement) =>
+      [statement['Action']].flat().includes('cloudfront:CreateInvalidation'),
+    )
+    expect(invalidations).toHaveLength(1)
+    expect(JSON.stringify(invalidations[0]?.['Resource'])).toContain('distribution/')
+    expect(JSON.stringify(invalidations[0]?.['Resource'])).toContain('MediaDistribution')
+  })
+
   it('serves the media hostname over HTTPS only', () => {
     dev.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({

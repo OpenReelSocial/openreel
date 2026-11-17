@@ -1,9 +1,11 @@
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { S3Client } from '@aws-sdk/client-s3'
 import { createDb, queryTapOptions } from '@openreel/db'
 import { PlcResolver, serve } from '@openreel/service-core'
 
 import { createApp, DEFAULT_PORT, SERVICE_NAME } from './app.ts'
 import { BlobFetcher } from './blob.ts'
+import { CloudFrontInvalidator } from './cdn.ts'
 import { readConfig } from './config.ts'
 import { S3MediaStore } from './s3-store.ts'
 import { FileMediaStore } from './store.ts'
@@ -17,11 +19,20 @@ const store =
     ? new S3MediaStore(new S3Client({}), config.store.bucket)
     : new FileMediaStore(config.store.root)
 
+if (config.store.kind === 's3' && config.cloudFrontDistributionId === undefined) {
+  console.warn('[media] MEDIA_CLOUDFRONT_DISTRIBUTION_ID is not set: removed videos stay cached')
+}
+
 const worker = new Worker({
   db,
   identity: new PlcResolver(config.plcUrl),
   blobs: new BlobFetcher({ aliases: config.pdsAliases, maxBytes: config.maxBlobBytes }),
   store,
+  ...(config.cloudFrontDistributionId === undefined
+    ? {}
+    : {
+        cdn: new CloudFrontInvalidator(new CloudFrontClient({}), config.cloudFrontDistributionId),
+      }),
   transcode,
   maxAttempts: config.maxAttempts,
   pollIntervalMs: config.pollIntervalMs,

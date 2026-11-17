@@ -21,6 +21,7 @@
 : "${PDS_SERVICE_HANDLE_DOMAINS:?handle suffix, e.g. .dev.openreel.social}"
 MEDIA_STORE="${MEDIA_STORE:-fs}"
 MEDIA_S3_BUCKET="${MEDIA_S3_BUCKET:-}"
+MEDIA_CLOUDFRONT_DISTRIBUTION_ID="${MEDIA_CLOUDFRONT_DISTRIBUTION_ID:-}"
 MEDIA_PUBLIC_URL="${MEDIA_PUBLIC_URL:-}"
 # Optional: Let's Encrypt expiry notices.
 ACME_EMAIL="${ACME_EMAIL:-}"
@@ -59,6 +60,7 @@ trap 'rm -f "$env_tmp"' EXIT
   echo "AWS_REGION=$AWS_REGION"
   echo "MEDIA_STORE=$MEDIA_STORE"
   echo "MEDIA_S3_BUCKET=$MEDIA_S3_BUCKET"
+  echo "MEDIA_CLOUDFRONT_DISTRIBUTION_ID=$MEDIA_CLOUDFRONT_DISTRIBUTION_ID"
   [[ -n "$MEDIA_PUBLIC_URL" ]] && echo "MEDIA_PUBLIC_URL=$MEDIA_PUBLIC_URL"
   # Values are hex (infra/scripts/init-secrets.sh), so they need no quoting.
   aws ssm get-parameters-by-path --path "$PARAMETER_PATH" --with-decryption \

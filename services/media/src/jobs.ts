@@ -48,6 +48,52 @@ export async function claimJob(
   return row && { authorDid: row.author_did, videoCid: row.video_cid, attempts: row.attempts }
 }
 
+/** Renditions of a blob no indexed post uses any more, to delete. */
+export interface Removal {
+  authorDid: string
+  videoCid: string
+}
+
+/**
+ * Claims the oldest blob queued for removal (status `removing`, set by the
+ * AppView when its last post goes), unless another worker claimed it
+ * recently. The row stays `removing` until {@link completeRemoval}.
+ */
+export async function claimRemoval(db: Kysely<Database>): Promise<Removal | undefined> {
+  const query = sql<{ author_did: string; video_cid: string }>`
+    update video_media
+    set claimed_at = now(), updated_at = now()
+    where (author_did, video_cid) = (
+      select m.author_did, m.video_cid from video_media m
+      where m.status = 'removing'
+        and (m.claimed_at is null or m.claimed_at < now() - ${STALE_CLAIM})
+      order by m.updated_at
+      limit 1
+      for update skip locked
+    )
+    returning author_did, video_cid
+  `
+  const result = await purpose('Poll removal queue', () => query.execute(db))
+  const row = result.rows[0]
+  return row && { authorDid: row.author_did, videoCid: row.video_cid }
+}
+
+/**
+ * Forgets a blob whose renditions are gone. If a post started using the blob
+ * again meanwhile, the AppView has set it back to `pending` and the row stays
+ * to be transcoded afresh.
+ */
+export async function completeRemoval(db: Kysely<Database>, removal: Removal): Promise<void> {
+  await purpose('Forget removed renditions', () =>
+    db
+      .deleteFrom('video_media')
+      .where('author_did', '=', removal.authorDid)
+      .where('video_cid', '=', removal.videoCid)
+      .where('status', '=', 'removing')
+      .execute(),
+  )
+}
+
 export async function completeJob(
   db: Kysely<Database>,
   job: Job,
@@ -89,7 +135,13 @@ export async function queueStats(db: Kysely<Database>): Promise<Record<string, n
       .groupBy('status')
       .execute(),
   )
-  const stats: Record<string, number> = { pending: 0, processing: 0, ready: 0, failed: 0 }
+  const stats: Record<string, number> = {
+    pending: 0,
+    processing: 0,
+    ready: 0,
+    failed: 0,
+    removing: 0,
+  }
   for (const row of rows) stats[row.status] = Number(row.count)
   return stats
 }

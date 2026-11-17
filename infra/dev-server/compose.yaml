@@ -77,6 +77,9 @@ services:
       # The media-cdn container behind host nginx unless .env names a CDN
       # (CloudFront on AWS).
       MEDIA_PUBLIC_URL: ${MEDIA_PUBLIC_URL:-https://${PDS_HOSTNAME}/media}
+      # com.atproto.admin.updateSubjectStatus (make takedown) takes the PDS's
+      # admin password, so one operator credential covers both.
+      ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD}
     ports:
       - '127.0.0.1:4102:3001'
     depends_on:
@@ -149,6 +152,8 @@ services:
       # the AWS host's instance role.
       MEDIA_STORE: ${MEDIA_STORE:-fs}
       MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-}
+      # Removed videos are invalidated on this CloudFront distribution (AWS).
+      MEDIA_CLOUDFRONT_DISTRIBUTION_ID: ${MEDIA_CLOUDFRONT_DISTRIBUTION_ID:-}
       AWS_REGION: ${AWS_REGION:-}
     ports:
       - '127.0.0.1:4107:3005'

@@ -4,6 +4,7 @@ export {
   type ActorTable,
   type Database,
   type GeneratedTimestamp,
+  type ModerationTakedownTable,
   type SyncCursorTable,
   type Timestamp,
   type VideoCommentTable,

@@ -10,6 +10,8 @@ export interface AppViewConfig {
   defaultFeedUri: string
   /** Public base URL the media pipeline's output is served from. */
   mediaPublicUrl: string
+  /** Basic-auth password for `com.atproto.admin.*`; unset disables them. */
+  adminPassword: string | undefined
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -27,5 +29,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppViewConfig 
     defaultFeedUri:
       env['DEFAULT_FEED_URI'] ?? 'at://openreel.social/social.openreel.feed.generator/recent',
     mediaPublicUrl: (env['MEDIA_PUBLIC_URL'] ?? 'http://localhost:3006').replace(/\/+$/, ''),
+    adminPassword: env['ADMIN_PASSWORD']?.trim() || undefined,
   }
 }

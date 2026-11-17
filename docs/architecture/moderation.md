@@ -60,11 +60,12 @@ of the feed client-side.
 
 Roughly in the order that unlocks the most:
 
-1. **Takedowns (#120).** Admin script for `com.atproto.admin.updateSubjectStatus`;
-   AppView drops taken-down records as well as accounts (accounts already work in
-   `services/appview/src/indexer/indexer.ts`); media renditions removed and
-   CloudFront invalidated (shared with #119). The client needs nothing extra: a
-   post the AppView stops returning disappears from the feed.
+1. ~~**Takedowns (#120).**~~ Done: `make takedown` (procedure in
+   `infra/README.md`) calls `com.atproto.admin.updateSubjectStatus` on the PDS
+   and the AppView. The AppView drops the account or record (videos, comments,
+   likes) and won't index it again, and the media worker deletes the renditions
+   and invalidates them on CloudFront. The client needs nothing extra: a post
+   the AppView stops returning disappears from the feed.
 2. **Reports reach someone.** Set `PDS_REPORT_SERVICE_URL` and
    `PDS_REPORT_SERVICE_DID` on the PDS to the moderation service (an Ozone
    instance is the least work). Until then, Report shows "Reporting isn't set

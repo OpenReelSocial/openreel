@@ -108,6 +108,7 @@ A human runs these, in order, with `AWS_PROFILE=openreel-dev`. Below,
    |---|---|
    | `AWS_DEPLOY_ROLE_ARN` | `DeployRoleArn` |
    | `AWS_INSTANCE_ID` | `InstanceId` |
+   | `AWS_MEDIA_DISTRIBUTION_ID` (with S3 media) | `MediaDistributionId`; removed videos are invalidated on it |
    | `ACME_EMAIL` (optional) | address for Let's Encrypt expiry notices |
 
    The deploy role trusts only jobs in the `aws-dev` environment (or
@@ -225,6 +226,41 @@ it: PDS accounts, Postgres, and PLC. The PR should say so, and whoever deploys
 it takes a backup first and restores it afterwards (below). First-boot setup
 in `lib/host.ts` runs only on a new instance, so editing it does not change
 the running host.
+
+## Takedowns
+
+To take down an account or a single record (a video, a comment), for
+example for content that breaks the rules (#120):
+
+```sh
+AWS_PROFILE=openreel-dev PUBLIC_URL=https://dev.openreel.social \
+  SUBJECT=at://did:plc:.../social.openreel.video.post/3k... make takedown
+AWS_PROFILE=openreel-dev PUBLIC_URL=https://dev.openreel.social \
+  SUBJECT=did:plc:... make takedown
+```
+
+`make takedown` reads the admin password from Parameter Store without
+printing it (or takes `PDS_ADMIN_PASSWORD`). It then calls
+`com.atproto.admin.updateSubjectStatus` on the PDS and on the AppView, which
+accepts the same password:
+
+- **PDS:** the PDS stops serving the record, or the account's repository. A
+  taken-down account cannot sign in or write.
+- **AppView:** the subject is deleted from the index at once, so `getFeed`
+  and `getComments` stop returning it. A post's comments go with it, and an
+  account's posts, comments, likes, and views go with the account. The
+  takedown is recorded in `moderation_takedown`, so a firehose replay does
+  not index the subject again.
+- **Media:** renditions of a video no remaining post uses are deleted from S3
+  (or the media volume), then invalidated on CloudFront. The media worker
+  does this before any queued transcodes, usually within seconds. The
+  invalidation takes a few minutes to reach every edge. Renditions shared
+  with another post by the same author stay until that post goes too.
+
+`REF=...` records why, for example a report ID. `REVERSE=1` lifts a takedown
+on both servers. It does not restore what the AppView removed: a record
+comes back once its author writes it again, and an account's content once
+the AppView re-reads it, which nothing does automatically yet.
 
 ## Backups
 

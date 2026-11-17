@@ -11,6 +11,11 @@ export interface MediaConfig {
   plcUrl: string
   store: StoreConfig
   /**
+   * CloudFront distribution serving the store (AWS); removed renditions are
+   * invalidated on it. Unset where nothing caches them (local Compose).
+   */
+  cloudFrontDistributionId: string | undefined
+  /**
    * PDS origins to reach at a different address, e.g. `http://localhost:3000`
    * (what a local DID document says) at `http://pds:3000` (what a container
    * can reach). Aliased origins are operator-chosen, so they skip SSRF checks.
@@ -66,6 +71,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): MediaConfig {
     databaseUrl,
     plcUrl: env['PLC_URL'] ?? 'http://localhost:2582',
     store: readStoreConfig(env),
+    cloudFrontDistributionId: env['MEDIA_CLOUDFRONT_DISTRIBUTION_ID']?.trim() || undefined,
     pdsAliases: parseAliases(env['PDS_ALIASES']),
     pollIntervalMs: positiveInt(env, 'MEDIA_POLL_INTERVAL_MS', 2_000),
     maxAttempts: positiveInt(env, 'MEDIA_MAX_ATTEMPTS', 3),

@@ -73,6 +73,9 @@ services:
       # ('make up-core') the indexer just keeps retrying.
       JETSTREAM_URL: ws://jetstream:6008/subscribe
       PLC_URL: http://plc:8080
+      # com.atproto.admin.updateSubjectStatus (make takedown) takes the PDS's
+      # admin password; without one (make up-core) the method is off.
+      ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:-}
       FEEDGEN_URL: http://feedgen:3002
       # Where clients (the iOS Simulator) fetch HLS: the media-cdn port below.
       MEDIA_PUBLIC_URL: http://localhost:${MEDIA_CDN_PORT:-3006}

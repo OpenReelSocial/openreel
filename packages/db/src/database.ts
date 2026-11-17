@@ -33,6 +33,7 @@ export interface Database {
   video_post_stats: VideoPostStatsTable
   video_media: VideoMediaTable
   sync_cursor: SyncCursorTable
+  moderation_takedown: ModerationTakedownTable
 }
 
 /** An account seen on the network, keyed by DID. */
@@ -137,7 +138,8 @@ export interface VideoPostStatsTable {
   updated_at: GeneratedTimestamp
 }
 
-export type VideoMediaStatus = 'pending' | 'processing' | 'ready' | 'failed'
+/** `removing`: no indexed post uses the blob any more; the media service deletes its renditions. */
+export type VideoMediaStatus = 'pending' | 'processing' | 'ready' | 'failed' | 'removing'
 
 /**
  * Derived HLS renditions of one video blob, and the media service's job queue.
@@ -160,6 +162,17 @@ export interface VideoMediaTable {
   ready_at: Timestamp | null
   created_at: GeneratedTimestamp
   updated_at: GeneratedTimestamp
+}
+
+/**
+ * An account (DID) or record (AT-URI) an operator took down. The indexer
+ * drops what it has for the subject and does not index it again.
+ */
+export interface ModerationTakedownTable {
+  subject: string
+  /** The moderation action's reference (`takedownRef`). */
+  ref: string
+  created_at: GeneratedTimestamp
 }
 
 /** Where a firehose consumer resumes after a restart (Jetstream `time_us`). */

@@ -16,11 +16,12 @@ import { HttpSkeletonSource } from './skeleton.ts'
 const config = readConfig()
 const db = createDb(config.databaseUrl, queryTapOptions(SERVICE_NAME))
 
+const indexer = new Indexer(db, new PlcResolver(config.plcUrl))
 const subscription = new JetstreamSubscription(
   config.jetstreamUrl,
   [VIDEO_POST_COLLECTION, WATCH_EVENT_COLLECTION, LIKE_COLLECTION, COMMENT_COLLECTION],
   db,
-  new Indexer(db, new PlcResolver(config.plcUrl)),
+  indexer,
 )
 
 serve(
@@ -29,6 +30,8 @@ serve(
     skeleton: new HttpSkeletonSource(config.feedgenUrl),
     defaultFeedUri: config.defaultFeedUri,
     mediaPublicUrl: config.mediaPublicUrl,
+    takedowns: indexer,
+    ...(config.adminPassword === undefined ? {} : { adminPassword: config.adminPassword }),
   }),
   SERVICE_NAME,
   DEFAULT_PORT,

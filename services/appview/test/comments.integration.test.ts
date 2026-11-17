@@ -1,4 +1,4 @@
-import { closeDb, createDb, migrateToLatest, type Database } from '@openreel/db'
+import type { Database } from '@openreel/db'
 import {
   ids,
   lexicons,
@@ -13,16 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app.ts'
 import type { JetstreamEvent } from '../src/indexer/events.ts'
 import { COMMENT_COLLECTION, Indexer, VIDEO_POST_COLLECTION } from '../src/indexer/indexer.ts'
-
-/**
- * Indexes comments from Jetstream-shaped events into a real Postgres and reads
- * them back through getComments and getFeed's post views. Runs when
- * TEST_DATABASE_URL is set (see packages/db/test/integration.test.ts). It works
- * in its own database beside that one, which it recreates, so it does not race
- * the db package's suite when turbo runs both at once.
- */
-const url = process.env['TEST_DATABASE_URL']
-const hasDb = url !== undefined && url !== ''
+import { freshDatabase, hasDb } from './db.ts'
 
 const AUTHOR = 'did:plc:author0000000000000000000'
 const VIEWER = 'did:plc:viewer0000000000000000000'
@@ -74,20 +65,19 @@ function commentUri(did: string, rkey: string): string {
   return `at://${did}/${COMMENT_COLLECTION}/${rkey}`
 }
 
+/**
+ * Indexes comments from Jetstream-shaped events into a real Postgres and reads
+ * them back through getComments and getFeed's post views. Runs when
+ * TEST_DATABASE_URL is set (see ./db.ts).
+ */
 describe.skipIf(!hasDb)('comments against Postgres', () => {
-  let admin: Kysely<Database>
   let db: Kysely<Database>
+  let drop: () => Promise<void>
   let indexer: Indexer
   let app: ReturnType<typeof createApp>
 
   beforeAll(async () => {
-    admin = createDb(url ?? '')
-    await sql`drop database if exists openreel_appview_test`.execute(admin)
-    await sql`create database openreel_appview_test`.execute(admin)
-    const own = new URL(url ?? '')
-    own.pathname = '/openreel_appview_test'
-    db = createDb(own.toString())
-    await migrateToLatest(db)
+    ;({ db, drop } = await freshDatabase('openreel_appview_comments_test'))
     indexer = new Indexer(db, {
       resolve: (did) => Promise.resolve({ did, handle: `${did.slice(8, 14)}.test` } as never),
     })
@@ -102,11 +92,7 @@ describe.skipIf(!hasDb)('comments against Postgres', () => {
     })
   })
 
-  afterAll(async () => {
-    await closeDb(db)
-    await sql`drop database if exists openreel_appview_test`.execute(admin)
-    await closeDb(admin)
-  })
+  afterAll(() => drop())
 
   beforeEach(async () => {
     await sql`truncate actor, video_post, video_media, video_comment, video_post_stats cascade`.execute(
