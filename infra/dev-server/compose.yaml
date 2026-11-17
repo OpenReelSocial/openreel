@@ -144,9 +144,9 @@ services:
       # in .env (on AWS, as a Parameter Store value) to turn it off.
       DEBUG_QUERY_TAP: ${DEBUG_QUERY_TAP:-1}
       PLC_URL: http://plc:8080
-      # Fetch blobs from the PDS over the Compose network rather than out
-      # through the public hostname and back.
-      PDS_ALIASES: https://${PDS_HOSTNAME}=http://pds:3000
+      # Fetch blobs from our PDSs over the Compose network rather than out
+      # through the public hostname and back. deploy.sh adds pds2 when it runs.
+      PDS_ALIASES: ${PDS_ALIASES:-https://${PDS_HOSTNAME}=http://pds:3000}
       MEDIA_ROOT: /media
       # fs writes MEDIA_ROOT for media-cdn; s3 writes MEDIA_S3_BUCKET, using
       # the AWS host's instance role.
@@ -296,7 +296,8 @@ services:
       # The server is on the public internet; open sign-up is opt-in.
       PDS_INVITE_REQUIRED: ${PDS_INVITE_REQUIRED:-true}
       # PDS_CRAWLERS is deliberately unset: accounts live in a private PLC, so
-      # there is nothing for the public Bluesky relay to crawl.
+      # there is nothing for the public Bluesky relay to crawl, and our own
+      # relay is told what to crawl by deploy.sh (ADR-0008).
       LOG_ENABLED: 'true'
       PDS_JWT_SECRET: ${PDS_JWT_SECRET:?set PDS_JWT_SECRET in .env}
       PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
@@ -321,6 +322,76 @@ services:
       retries: 5
       start_period: 15s
 
+  # A second PDS (ADR-0008), so records from more than one PDS and account
+  # migration can be shown. Same image and private PLC as 'pds'; its own
+  # hostname, secrets, and volume. Only runs with the pds2 profile, which
+  # deploy.sh enables when PDS2_HOSTNAME is set.
+  pds2:
+    image: ghcr.io/bluesky-social/pds:0.4.219
+    profiles: [pds2]
+    restart: unless-stopped
+    environment:
+      PDS_HOSTNAME: ${PDS2_HOSTNAME:-}
+      PDS_SERVICE_HANDLE_DOMAINS: .${PDS2_HOSTNAME:-}
+      PDS_PORT: 3000
+      PDS_DEV_MODE: 'false'
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_BLOB_UPLOAD_LIMIT: '100000000'
+      PDS_DID_PLC_URL: http://plc:8080
+      PDS_INVITE_REQUIRED: ${PDS_INVITE_REQUIRED:-true}
+      LOG_ENABLED: 'true'
+      # Not ':?': Compose interpolates profiled-off services too. deploy.sh
+      # refuses to enable the profile without them.
+      PDS_JWT_SECRET: ${PDS2_JWT_SECRET:-}
+      PDS_ADMIN_PASSWORD: ${PDS2_ADMIN_PASSWORD:-}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS2_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX:-}
+    ports:
+      - '127.0.0.1:4108:3000'
+    volumes:
+      - pds2-data:/pds
+    depends_on:
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/xrpc/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Bluesky's relay (ADR-0008): subscribes to every PDS deploy.sh asks it to
+  # crawl, keeps only events from the PDS each account's DID document names
+  # (which is what makes migration work), and re-serves them as one firehose
+  # for Jetstream. Upstream publishes only commit-pinned tags.
+  relay:
+    image: ghcr.io/bluesky-social/indigo:relay-a39b2f94d516d6d450b840bd4ca68cb7e3edaf4c
+    restart: unless-stopped
+    environment:
+      RELAY_PLC_HOST: http://plc:8080
+      # Admin API (crawl requests), on loopback only; same operator credential
+      # as the PDS and the AppView's admin method.
+      RELAY_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
+      # Our PDSs may hold more than the relay's default 100 accounts per host.
+      RELAY_TRUSTED_DOMAINS: ${PDS_HOSTNAME:?set PDS_HOSTNAME in .env},*.${PDS_HOSTNAME}
+      # Hosts come only from deploy.sh through the admin API.
+      RELAY_DISABLE_REQUEST_CRAWL: 'true'
+      LOG_LEVEL: info
+    ports:
+      - '127.0.0.1:4109:2470'
+    volumes:
+      # SQLite database and event log under /data/relay (the image's defaults).
+      - relay-data:/data
+    depends_on:
+      plc:
+        condition: service_healthy
+
   jetstream:
     image: ghcr.io/bluesky-social/jetstream:sha-d5a3b62
     platform: linux/amd64
@@ -334,12 +405,15 @@ services:
       # restarted it every 10 minutes. A dropped PDS connection still exits
       # (and restarts) on its own; this only stops idle restarts.
       JETSTREAM_LIVENESS_TTL: 8760h
-      JETSTREAM_WS_URL: ws://pds:3000/xrpc/com.atproto.sync.subscribeRepos
+      # The relay's firehose, which carries every crawled PDS (ADR-0008).
+      JETSTREAM_WS_URL: ws://relay:2470/xrpc/com.atproto.sync.subscribeRepos
     volumes:
-      - jetstream-data:/data
+      # A new volume: Jetstream's saved cursor counted the PDS's sequence
+      # numbers, and the relay numbers its events afresh.
+      - jetstream-relay-data:/data
     depends_on:
-      pds:
-        condition: service_healthy
+      relay:
+        condition: service_started
 
   # Loopback only, like admin: 'ssh -L 4105:127.0.0.1:4105 <server>'.
   event-consumer:
@@ -372,6 +446,8 @@ volumes:
   postgres-data:
   redis-data:
   pds-data:
+  pds2-data:
   plc-data:
-  jetstream-data:
+  relay-data:
+  jetstream-relay-data:
   media-data:

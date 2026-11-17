@@ -229,6 +229,49 @@ it takes a backup first and restores it afterwards (below). First-boot setup
 in `lib/host.ts` runs only on a new instance, so editing it does not change
 the running host.
 
+## Federation: the relay and a second PDS
+
+Jetstream reads the upstream relay rather than the PDS (ADR-0008). The relay
+subscribes to every PDS it has been asked to crawl, keeps an event only if it
+comes from the PDS the account's DID document names, and serves them all as
+one firehose. `deploy.sh` asks it to crawl our PDS hostnames on every deploy.
+It is reachable only on the host's loopback (port 4109, admin user `admin`
+with the PDS admin password); `GET /admin/pds/list` shows what it crawls.
+
+**Turning on the second PDS** (`pds2.dev.openreel.social`), once:
+
+1. In Cloudflare, add an A record for `pds2.dev.openreel.social` pointing at
+   the host's Elastic IP (DNS only, not proxied), like `dev.openreel.social`.
+2. `AWS_PROFILE=openreel-dev infra/scripts/init-secrets.sh` creates the
+   `PDS2_*` parameters (existing ones are left alone).
+3. Set the repository variable `PDS2_HOSTNAME=pds2.dev.openreel.social` and
+   rerun the deploy workflow. `deploy.sh` obtains its certificate, enables its
+   nginx site, starts it, and adds it to the relay.
+
+Accounts on it are created like any other (`make seed-videos` with
+`PUBLIC_URL=https://pds2.dev.openreel.social APPVIEW_URL=https://dev.openreel.social/appview`
+and `PDS_ADMIN_PASSWORD` set to the `PDS2_ADMIN_PASSWORD` parameter), and their
+videos appear in the same feeds.
+
+**Migrating an account** between the two PDSs uses the protocol's own flow:
+
+```sh
+export OLD_PDS_URL=https://dev.openreel.social NEW_PDS_URL=https://pds2.dev.openreel.social
+export MIGRATE_HANDLE=alice.dev.openreel.social MIGRATE_PASSWORD=...
+export NEW_PDS_ADMIN_PASSWORD=...   # PDS2_ADMIN_PASSWORD, for the invite
+make migrate-account                # requests a PLC token
+AWS_PROFILE=openreel-dev make aws-plc-token DID=did:plc:...
+PLC_TOKEN=... make migrate-account  # moves the account
+```
+
+Our PDSs send no mail, so the token is read from the old PDS's database
+(`SERVICE=pds2` when moving off the second PDS). After the move the DID, its
+posts' AT-URIs, and its renditions are unchanged; the relay starts taking the
+account's events from the new PDS, and new posts appear as before.
+
+`make aws-backup` covers the first PDS only; the second one's volume
+(`pds2-data`) is not backed up yet.
+
 ## Takedowns
 
 To take down an account or a single record (a video, a comment), for

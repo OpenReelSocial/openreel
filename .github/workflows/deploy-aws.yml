@@ -18,6 +18,7 @@
 #   AWS_MEDIA_DISTRIBUTION_ID  MediaDistributionId; removed videos are invalidated on it
 #   MEDIA_PUBLIC_URL     https://media.dev.openreel.social when MEDIA_STORE is s3
 #   ACME_EMAIL           Let's Encrypt expiry notices
+#   PDS2_HOSTNAME        second PDS (ADR-0008), e.g. pds2.dev.openreel.social
 name: Deploy AWS dev
 
 on:
@@ -125,6 +126,7 @@ jobs:
           MEDIA_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.AWS_MEDIA_DISTRIBUTION_ID }}
           MEDIA_PUBLIC_URL: ${{ vars.MEDIA_PUBLIC_URL }}
           ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+          PDS2_HOSTNAME: ${{ vars.PDS2_HOSTNAME }}
         run: |
           raw="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${SHA}"
           script="install -d -m 700 /srv/openreel && curl -fsSL --retry 3 '$raw/infra/aws/scripts/deploy.sh' -o /srv/openreel/deploy.sh && env \
@@ -135,6 +137,7 @@ jobs:
             MEDIA_STORE='$MEDIA_STORE' MEDIA_S3_BUCKET='$MEDIA_S3_BUCKET' \
             MEDIA_CLOUDFRONT_DISTRIBUTION_ID='$MEDIA_CLOUDFRONT_DISTRIBUTION_ID' \
             MEDIA_PUBLIC_URL='$MEDIA_PUBLIC_URL' ACME_EMAIL='$ACME_EMAIL' \
+            PDS2_HOSTNAME='$PDS2_HOSTNAME' \
             bash /srv/openreel/deploy.sh"
           command_id=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
