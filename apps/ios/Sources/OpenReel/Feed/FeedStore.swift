@@ -2,7 +2,8 @@ import Foundation
 import Observation
 import OpenReelATProto
 
-/// The feed's contents: which feeds the AppView offers and which is selected,
+/// The feed's contents: which feeds the AppView offers, how the viewer
+/// arranged them (`FeedPreferences`, saved on the device), which is selected,
 /// the selected feed's first page, pull-to-refresh, and cursor paging as the
 /// viewer nears the end. Playback is separate (`FeedPlaybackController`).
 @MainActor
@@ -19,11 +20,15 @@ final class FeedStore {
     /// `feed` is a generator URI; `nil` is the AppView's default feed.
     typealias PageLoader = @Sendable (_ feed: String?, _ cursor: String?) async throws -> VideoFeedPage
     typealias FeedsLoader = @Sendable () async throws -> [FeedGeneratorView]
+    /// Finds the feeds another generator serves, from a domain the viewer typed.
+    typealias FeedLookup = @Sendable (_ domain: String) async throws -> (host: String, feeds: [FeedGeneratorView])
 
     private(set) var phase: Phase = .idle
-    /// Feeds to offer as tabs, default first. Empty until listed, or if the
+    /// Feeds the AppView offers, default first. Empty until listed, or if the
     /// AppView could not list them; the default feed still plays.
     private(set) var feeds: [FeedGeneratorView] = []
+    /// The viewer's tab order, hidden feeds, and feeds added from elsewhere.
+    private(set) var preferences: FeedPreferences
     /// URI of the feed being shown; `nil` means the AppView's default.
     private(set) var selectedFeedURI: String?
     /// Everything loaded for the selected feed, including reels the
@@ -42,22 +47,35 @@ final class FeedStore {
 
     @ObservationIgnored private let loadPage: PageLoader
     @ObservationIgnored private let loadFeeds: FeedsLoader
+    @ObservationIgnored private let lookUp: FeedLookup
+    /// Where `preferences` is saved; `nil` keeps them in memory (previews).
+    @ObservationIgnored private let defaults: UserDefaults?
     let moderation: ModerationController
 
+    static let preferencesKey = "feedPreferences"
+
     init(loadFeeds: @escaping FeedsLoader = { [] }, loadPage: @escaping PageLoader,
-         moderation: ModerationController? = nil) {
+         lookUp: @escaping FeedLookup = { throw FeedLookupError.invalidDomain($0) },
+         moderation: ModerationController? = nil, defaults: UserDefaults? = nil) {
         self.loadFeeds = loadFeeds
         self.loadPage = loadPage
+        self.lookUp = lookUp
         self.moderation = moderation ?? ModerationController()
+        self.defaults = defaults
+        preferences = defaults?.data(forKey: Self.preferencesKey)
+            .flatMap { try? JSONDecoder().decode(FeedPreferences.self, from: $0) } ?? FeedPreferences()
     }
 
     convenience init(client: AppViewClient, moderation: ModerationController) {
+        let directory = FeedGeneratorDirectory()
         self.init(
             loadFeeds: { try await client.getSuggestedFeeds() },
             loadPage: { feed, cursor in
                 try await client.getFeed(feed: feed, limit: FeedConfiguration.pageSize, cursor: cursor)
             },
-            moderation: moderation
+            lookUp: { try await directory.feeds(at: $0) },
+            moderation: moderation,
+            defaults: .standard
         )
     }
 
@@ -68,7 +86,71 @@ final class FeedStore {
     }
 
     var selectedFeed: FeedGeneratorView? {
-        feeds.first { $0.uri == selectedFeedURI }
+        preferences.available(suggested: feeds).first { $0.uri == selectedFeedURI }
+    }
+
+    // MARK: - Arranging feeds
+
+    /// The feeds shown as tabs over the video, in the viewer's order.
+    var tabFeeds: [FeedGeneratorView] {
+        preferences.tabs(suggested: feeds)
+    }
+
+    /// Feeds the viewer hid from the tabs.
+    var hiddenFeeds: [FeedGeneratorView] {
+        preferences.hiddenFeeds(suggested: feeds)
+    }
+
+    func isAdded(_ feed: FeedGeneratorView) -> Bool {
+        preferences.isAdded(feed.uri)
+    }
+
+    /// At least one tab always stays.
+    func canHide(_ feed: FeedGeneratorView) -> Bool {
+        preferences.canHide(feed.uri, suggested: feeds)
+    }
+
+    func setTabOrder(_ tabs: [FeedGeneratorView]) {
+        updatePreferences { $0.setTabOrder(tabs.map(\.uri)) }
+    }
+
+    func hide(_ feed: FeedGeneratorView) {
+        guard canHide(feed) else { return }
+        updatePreferences { $0.hide(feed.uri) }
+    }
+
+    func show(_ feed: FeedGeneratorView) {
+        let tabs = tabFeeds.map(\.uri)
+        updatePreferences {
+            $0.setTabOrder(tabs)
+            $0.show(feed.uri)
+        }
+    }
+
+    func add(_ added: [FeedGeneratorView]) {
+        let tabs = tabFeeds.map(\.uri)
+        updatePreferences {
+            $0.setTabOrder(tabs)
+            $0.add(added)
+        }
+    }
+
+    /// Forgets a feed the viewer added; the AppView's own feeds can only be hidden.
+    func remove(_ feed: FeedGeneratorView) {
+        guard isAdded(feed), canHide(feed) || hiddenFeeds.contains(feed) else { return }
+        updatePreferences { $0.remove(feed.uri) }
+    }
+
+    /// The feeds served at the domain the viewer typed.
+    func lookUpFeeds(at domain: String) async throws -> (host: String, feeds: [FeedGeneratorView]) {
+        try await lookUp(domain)
+    }
+
+    private func updatePreferences(_ change: (inout FeedPreferences) -> Void) {
+        change(&preferences)
+        if let defaults, let data = try? JSONEncoder().encode(preferences) {
+            defaults.set(data, forKey: Self.preferencesKey)
+        }
     }
 
     func loadIfNeeded() async {
@@ -163,8 +245,9 @@ final class FeedStore {
         do {
             feeds = try await loadFeeds()
             if selectedFeedURI == nil {
-                // The AppView lists its default first.
-                selectedFeedURI = feeds.first?.uri
+                // The first tab: the AppView lists its default first, but the
+                // viewer may have reordered or hidden it.
+                selectedFeedURI = tabFeeds.first?.uri ?? feeds.first?.uri
             }
         } catch {
             print("[feed] could not list feeds: \(error)")

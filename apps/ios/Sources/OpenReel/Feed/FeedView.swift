@@ -31,9 +31,9 @@ struct FeedView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             VStack(spacing: 12) {
-                if !store.feeds.isEmpty {
+                if !store.tabFeeds.isEmpty {
                     FeedSwitcherView(
-                        feeds: store.feeds,
+                        feeds: store.tabFeeds,
                         selection: store.selectedFeedURI,
                         onSelect: select,
                         onChooseFeeds: { isChoosingFeed = true }
@@ -53,7 +53,7 @@ struct FeedView: View {
         }
         .background(MonoTheme.background.ignoresSafeArea())
         .sheet(isPresented: $isChoosingFeed) {
-            FeedPickerView(feeds: store.feeds, selection: store.selectedFeedURI, onSelect: select)
+            MyFeedsView(store: store, onSelect: select)
                 .preferredColorScheme(.dark)
         }
         .sheet(item: $reportingReel) { reel in

@@ -14,9 +14,16 @@ iOS app ──getFeed(feed)──────▶ AppView ──getFeedSkeleton(f
 ```
 
 The app lists feeds from `social.openreel.feed.getSuggestedFeeds` and shows
-them as tabs. The feed picker (the button beside the tabs) shows each feed's
-description, ranking family, and weights. Selecting one calls `getFeed` with
-that feed's URI. The AppView puts its default feed (`DEFAULT_FEED_URI`) first.
+them as tabs, plus any feeds the viewer added from other generators (see
+[Other people's feeds](#other-peoples-feeds)). Selecting a tab calls `getFeed`
+with that feed's URI. The AppView puts its default feed (`DEFAULT_FEED_URI`)
+first.
+
+**My feeds** (the button beside the tabs) lists the tabs with each feed's
+ranking family and weights. The viewer can drag to reorder them, hide feeds
+they do not use, and add a feed by domain. Order, hidden feeds and added feeds
+are saved on the device only (`FeedPreferences` in the app); nothing is
+written to the viewer's repository.
 
 ## Configuring a feed
 
@@ -160,14 +167,50 @@ adds the viewer's own change to the count it shows.
 A like is an explicit, public action, so unlike watch events it needs no
 opt-in. It is visible to anyone, as likes are on Bluesky.
 
+## Other people's feeds
+
+Anyone can run a feed generator for OpenReel on their own domain
+([ADR-0010](../adr/0010-third-party-feed-generators.md)).
+
+```text
+iOS app ──describeFeedGenerator──────────────────────────────▶ feeds.example.com
+iOS app ──getFeed(at://feeds.example.com/…/cats)──▶ AppView ──getFeedSkeleton──▶ feeds.example.com
+                                                      │  hydrates from its own index
+```
+
+A generator serves `social.openreel.feed.describeFeedGenerator` and
+`social.openreel.feed.getFeedSkeleton` over HTTPS at its domain. Its feed URIs
+use that domain, or `did:web:` plus the domain, as the authority:
+`at://feeds.example.com/social.openreel.feed.generator/cats`.
+
+- **Adding one (app):** the viewer types a domain in My feeds. The app calls
+  `describeFeedGenerator` on `https://<domain>` directly and keeps only feeds
+  whose URI authority is that domain, so a host cannot list feeds served by
+  someone else. Added feeds are saved on the device.
+- **Playing one (AppView):** `RoutingSkeletonSource` sends feeds whose
+  authority our feedgen publishes under to `FEEDGEN_URL`, and any other
+  domain or `did:web` authority to that host. `did:plc` authorities are
+  refused (`UnknownFeed`) until generator records are published.
+- **Guards:** requests to other hosts go through `public-http.ts`: HTTPS on
+  443 only, no IP literals or local names, every resolved address must be
+  public (checked in the socket's lookup, so DNS rebinding cannot change it),
+  no redirects, 5 s and 1 MB limits. Skeletons are validated against the
+  Lexicon and cut to the requested `limit`.
+- **What a generator controls:** only which of the AppView's indexed, playable,
+  not-taken-down posts appear and in what order. Hydration and moderation are
+  the same as for our feeds. Its ranking disclosure is self-declared.
+- **Turning it off:** `EXTERNAL_FEEDS=off` on the AppView serves only our own
+  feeds; other feed URIs return `UnknownFeed`.
+
 ## Not built yet
 
 - Following and Social Discovery feeds: the follow graph is not indexed.
 - Publishing `social.openreel.feed.generator` records. Until they exist, feedgen
   describes its own feeds and does not verify a feed URI's authority.
-- Personalized or opt-in feeds (plan tier 2, "For You") and third-party
-  generators. Tier 2 changes what data a generator sees, so it needs an ADR
-  first.
+- Personalized or opt-in feeds (plan tier 2, "For You"). Tier 2 changes what
+  data a generator sees, so it needs an ADR first.
+- Resolving third-party feeds through generator records, rate limits or
+  caching for external generators, and syncing My feeds across devices.
 - Stable paging for weighted feeds. They page by offset over live scores, so a
   page can repeat or skip a post.
 - Precomputed scores. Every request scores every playable post. At larger
@@ -179,4 +222,4 @@ With the local stack running (`make up`), run `make seed-videos`, then
 `make seed-likes` for Popular and `make seed-views` for Trending.
 `seed-views` has demo accounts watch three of the newest videos to different
 lengths, and like them at different rates. It then waits until Trending ranks
-them in that order. Open the feed picker in the app to switch feeds.
+them in that order. Swipe the feed tabs, or open My feeds, to switch feeds.

@@ -2,7 +2,7 @@ import OpenReelATProto
 import SwiftUI
 
 /// Feed tabs drawn over the top of the video as a wheel, plus a button that
-/// shows how each feed ranks.
+/// opens My feeds, where the viewer arranges and adds feeds.
 ///
 /// The selected feed sits in the center. Dragging sideways brings each feed
 /// to the center with a tick, and the one the wheel comes to rest on is
@@ -50,7 +50,7 @@ struct FeedSwitcherView: View {
                     .foregroundStyle(MonoTheme.primary)
                     .frame(width: 44, height: 44)
             }
-            .accessibilityLabel("Choose feeds")
+            .accessibilityLabel("My feeds")
             .padding(.trailing, 8)
         }
         .onAppear { centeredURI = selection }

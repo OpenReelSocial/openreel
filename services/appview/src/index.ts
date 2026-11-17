@@ -11,6 +11,8 @@ import {
   WATCH_EVENT_COLLECTION,
 } from './indexer/indexer.ts'
 import { JetstreamSubscription } from './indexer/subscription.ts'
+import { feedAuthority, RoutingSkeletonSource } from './feed-routing.ts'
+import { createPublicJsonFetch } from './public-http.ts'
 import { HttpSkeletonSource } from './skeleton.ts'
 
 const config = readConfig()
@@ -27,7 +29,10 @@ const subscription = new JetstreamSubscription(
 serve(
   createApp({
     db,
-    skeleton: new HttpSkeletonSource(config.feedgenUrl),
+    skeleton: new RoutingSkeletonSource(new HttpSkeletonSource(config.feedgenUrl), {
+      localAuthorities: [feedAuthority(config.defaultFeedUri) ?? 'openreel.social'],
+      external: config.externalFeeds ? createPublicJsonFetch() : undefined,
+    }),
     defaultFeedUri: config.defaultFeedUri,
     mediaPublicUrl: config.mediaPublicUrl,
     takedowns: indexer,
