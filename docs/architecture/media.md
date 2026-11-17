@@ -75,6 +75,15 @@ Failed jobs are retried with a one-minute-per-attempt backoff, up to
 `MEDIA_MAX_ATTEMPTS` (3). A job left in `processing` for 15 minutes (a crashed
 worker) is reclaimed. `last_error` holds the most recent failure.
 
+When the last indexed post using a blob goes (deleted by its author, taken
+down, or purged with its account), the AppView sets the row to `removing`.
+The media worker handles those before transcodes: it deletes the renditions
+from the store, invalidates `/<did>/<cid>/*` on CloudFront when
+`MEDIA_CLOUDFRONT_DISTRIBUTION_ID` is set, and then deletes the row. A failed
+removal is retried once its claim is 15 minutes old. If a post starts using
+the blob again first, the AppView sets the row back to `pending`, and the
+blob is transcoded afresh.
+
 ## Trying it
 
 ```sh

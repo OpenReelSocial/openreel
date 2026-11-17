@@ -81,7 +81,6 @@ the AppView are done; labels on comments wait for the labeler.
 
 - **Labels:** attach `labels` to `commentView` for the requested labelers, as
   for posts, and omit comments a `;redact` labeler hides (see `moderation.md`).
-- **Takedowns** of individual comments (#120).
 - **Ranking:** comment counts are an engagement signal the feed generator
   could use.
 

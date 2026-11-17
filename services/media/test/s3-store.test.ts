@@ -1,7 +1,12 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import type { PutObjectCommand, PutObjectCommandInput } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  type PutObjectCommandInput,
+} from '@aws-sdk/client-s3'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { S3MediaStore } from '../src/s3-store.ts'
@@ -9,13 +14,29 @@ import { S3MediaStore } from '../src/s3-store.ts'
 const DID = 'did:plc:abc123'
 const CID = 'bafkreiexample'
 
+/** An in-memory bucket. Lists return at most `pageSize` keys, like S3's 1000. */
 class FakeS3 {
   readonly puts: PutObjectCommandInput[] = []
+  readonly keys = new Set<string>()
   failOn: string | undefined
+  pageSize = 1000
 
-  send(command: PutObjectCommand): Promise<unknown> {
+  send(command: PutObjectCommand | ListObjectsV2Command | DeleteObjectsCommand): Promise<unknown> {
+    if (command instanceof ListObjectsV2Command) {
+      const prefix = command.input.Prefix ?? ''
+      const matching = [...this.keys].filter((key) => key.startsWith(prefix)).sort()
+      return Promise.resolve({
+        Contents: matching.slice(0, this.pageSize).map((Key) => ({ Key })),
+        IsTruncated: matching.length > this.pageSize,
+      })
+    }
+    if (command instanceof DeleteObjectsCommand) {
+      for (const { Key } of command.input.Delete?.Objects ?? []) this.keys.delete(Key ?? '')
+      return Promise.resolve({})
+    }
     if (command.input.Key === this.failOn) return Promise.reject(new Error('put failed'))
     this.puts.push(command.input)
+    this.keys.add(command.input.Key ?? '')
     return Promise.resolve({})
   }
 }
@@ -125,6 +146,26 @@ describe('S3MediaStore', () => {
 
     await expect(store.publish(work, did, cid)).rejects.toThrow(/unsafe media key/)
     expect(s3.puts).toEqual([])
+  })
+
+  it('remove deletes every object under the key, a page at a time, and nothing else', async () => {
+    const s3 = new FakeS3()
+    s3.pageSize = 3
+    const store = new S3MediaStore(s3, 'media-bucket')
+    await store.publish(await renditions(store, LAYOUT), DID, CID)
+    await store.publish(await renditions(store, LAYOUT), DID, 'bafkreiother')
+
+    await store.remove(DID, CID)
+
+    expect([...s3.keys].every((key) => key.startsWith(`${DID}/bafkreiother/`))).toBe(true)
+    expect(s3.keys.size).toBe(LAYOUT.length)
+    // Removing again finds nothing and succeeds.
+    await store.remove(DID, CID)
+  })
+
+  it('remove refuses an unsafe key', async () => {
+    const store = new S3MediaStore(new FakeS3(), 'media-bucket')
+    await expect(store.remove(DID, '../escape')).rejects.toThrow(/unsafe media key/)
   })
 
   it('discard removes the work dir', async () => {

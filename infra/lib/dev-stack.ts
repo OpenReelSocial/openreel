@@ -122,6 +122,11 @@ export class DevStack extends Stack {
         value: this.media.distribution.distributionDomainName,
         description: `Cloudflare CNAME target for ${this.config.mediaDomain} (DNS only)`,
       },
+      MediaDistributionId: {
+        value: this.media.distribution.distributionId,
+        description:
+          'AWS_MEDIA_DISTRIBUTION_ID repository variable; removed videos are invalidated on it',
+      },
       MediaBucket: {
         value: this.media.bucket.bucketName,
         description: 'MEDIA_S3_BUCKET for the media worker',

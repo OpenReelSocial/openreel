@@ -15,6 +15,8 @@ export interface MediaStore {
   /** Publishes a finished scratch directory under its key, replacing any old copy. */
   publish(workDir: string, did: string, cid: string): Promise<void>
   discard(workDir: string): Promise<void>
+  /** Deletes every rendition under a key. Removing a key that is not there is not an error. */
+  remove(did: string, cid: string): Promise<void>
 }
 
 /** Throws unless the DID and CID are safe to use as path or object-key segments. */
@@ -60,5 +62,9 @@ export class FileMediaStore implements MediaStore {
 
   async discard(workDir: string): Promise<void> {
     await rm(workDir, { recursive: true, force: true })
+  }
+
+  async remove(did: string, cid: string): Promise<void> {
+    await rm(keyPath(this.#root, did, cid), { recursive: true, force: true })
   }
 }

@@ -2,13 +2,18 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join, relative, sep } from 'node:path'
 
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  type ListObjectsV2CommandOutput,
+} from '@aws-sdk/client-s3'
 
 import { assertSafeKey, type MediaStore } from './store.ts'
 
-/** The one S3 call the store makes; `S3Client` satisfies it, tests pass a fake. */
+/** The S3 calls the store makes; `S3Client` satisfies it, tests pass a fake. */
 export interface S3Putter {
-  send(command: PutObjectCommand): Promise<unknown>
+  send(command: PutObjectCommand | ListObjectsV2Command | DeleteObjectsCommand): Promise<unknown>
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -95,6 +100,27 @@ export class S3MediaStore implements MediaStore {
 
   async discard(workDir: string): Promise<void> {
     await rm(workDir, { recursive: true, force: true })
+  }
+
+  /** Lists the key's objects a page (up to 1000) at a time and deletes each page. */
+  async remove(did: string, cid: string): Promise<void> {
+    assertSafeKey(did, cid)
+    for (;;) {
+      const page = (await this.#client.send(
+        new ListObjectsV2Command({ Bucket: this.#bucket, Prefix: `${did}/${cid}/` }),
+      )) as ListObjectsV2CommandOutput
+      const keys = (page.Contents ?? []).flatMap((object) =>
+        object.Key === undefined ? [] : [{ Key: object.Key }],
+      )
+      if (keys.length === 0) return
+      const result = (await this.#client.send(
+        new DeleteObjectsCommand({ Bucket: this.#bucket, Delete: { Objects: keys, Quiet: true } }),
+      )) as { Errors?: { Key?: string; Message?: string }[] }
+      const failed = result.Errors?.[0]
+      if (failed !== undefined) {
+        throw new Error(`could not delete s3://${this.#bucket}/${failed.Key}: ${failed.Message}`)
+      }
+    }
   }
 }
 

@@ -25,6 +25,7 @@ const hasDb = url !== undefined && url !== ''
 
 const EXPECTED_TABLES = [
   'actor',
+  'moderation_takedown',
   'sync_cursor',
   'video_comment',
   'video_like',

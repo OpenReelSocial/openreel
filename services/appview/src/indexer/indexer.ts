@@ -37,6 +37,7 @@ export class Indexer {
   async handle(event: JetstreamEvent): Promise<void> {
     switch (event.kind) {
       case 'commit':
+        if (event.commit.operation !== 'delete' && (await this.#isTakenDown(event))) return
         if (event.commit.collection === VIDEO_POST_COLLECTION) await this.#videoPost(event)
         else if (event.commit.collection === WATCH_EVENT_COLLECTION) await this.#watchEvent(event)
         else if (event.commit.collection === LIKE_COLLECTION) await this.#like(event)
@@ -55,9 +56,16 @@ export class Indexer {
     const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
 
     if (event.commit.operation === 'delete') {
-      await purpose('Delete video post', () =>
-        this.#db.deleteFrom('video_post').where('uri', '=', uri).execute(),
-      )
+      await this.#db.transaction().execute(async (tx) => {
+        const deleted = await purpose('Delete video post', () =>
+          tx.deleteFrom('video_post').where('uri', '=', uri).returning('video_cid').execute(),
+        )
+        await releaseMedia(
+          tx,
+          event.did,
+          deleted.flatMap((row) => (row.video_cid === null ? [] : [row.video_cid])),
+        )
+      })
       return
     }
 
@@ -91,12 +99,24 @@ export class Indexer {
           .onConflict((oc) => oc.column('uri').doUpdateSet(columns))
           .execute(),
       )
-      // Queue the blob for transcoding unless it already has renditions.
+      // Queue the blob for transcoding unless it already has renditions. A
+      // blob whose renditions are being removed is transcoded again.
       await purpose('Enqueue transcode job', () =>
         tx
           .insertInto('video_media')
           .values({ author_did: event.did, video_cid: fields.videoCid })
-          .onConflict((oc) => oc.columns(['author_did', 'video_cid']).doNothing())
+          .onConflict((oc) =>
+            oc
+              .columns(['author_did', 'video_cid'])
+              .doUpdateSet({
+                status: 'pending',
+                attempts: 0,
+                claimed_at: null,
+                last_error: null,
+                updated_at: new Date(),
+              })
+              .where('video_media.status', '=', 'removing'),
+          )
           .execute(),
       )
       // Watch events and likes can be indexed before their post; count them now.
@@ -313,23 +333,98 @@ export class Indexer {
   async #accountChanged(event: AccountEvent): Promise<void> {
     const { active, status } = event.account
     if (active || status === undefined || !REMOVED_STATUSES.has(status)) return
+    await this.#purgeAccount(event.did)
+  }
+
+  /**
+   * Takes down an account (DID) or a record (AT-URI): deletes what the index
+   * holds for it, as if the account were removed or the record deleted, and
+   * refuses to index it again. Idempotent.
+   */
+  async takedown(subject: string, ref: string): Promise<void> {
+    await purpose('Record takedown', () =>
+      this.#db
+        .insertInto('moderation_takedown')
+        .values({ subject, ref })
+        .onConflict((oc) => oc.column('subject').doUpdateSet({ ref }))
+        .execute(),
+    )
+    if (subject.startsWith('did:')) {
+      await this.#purgeAccount(subject)
+      return
+    }
+    const [did, collection, rkey] = subject.slice('at://'.length).split('/')
+    if (did === undefined || collection === undefined || rkey === undefined) return
+    await this.handle({
+      kind: 'commit',
+      did,
+      time_us: Date.now() * 1000,
+      commit: { operation: 'delete', collection, rkey },
+    })
+  }
+
+  /**
+   * Lifts a takedown so the subject can be indexed again. What was removed
+   * is not restored: a record returns when its author next writes it, or on
+   * a replay of the firehose that still includes it.
+   */
+  async liftTakedown(subject: string): Promise<void> {
+    await purpose('Lift takedown', () =>
+      this.#db.deleteFrom('moderation_takedown').where('subject', '=', subject).execute(),
+    )
+  }
+
+  /** The takedown ref for a subject, or `undefined` if it is not taken down. */
+  async takedownRef(subject: string): Promise<string | undefined> {
+    const row = await purpose('Look up takedown', () =>
+      this.#db
+        .selectFrom('moderation_takedown')
+        .select('ref')
+        .where('subject', '=', subject)
+        .executeTakeFirst(),
+    )
+    return row?.ref
+  }
+
+  async #isTakenDown(event: CommitEvent): Promise<boolean> {
+    const uri = `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`
+    const row = await purpose('Check takedowns', () =>
+      this.#db
+        .selectFrom('moderation_takedown')
+        .select('subject')
+        .where('subject', 'in', [event.did, uri])
+        .executeTakeFirst(),
+    )
+    return row !== undefined
+  }
+
+  async #purgeAccount(did: string): Promise<void> {
     await purpose('Purge content of removed account', () =>
       this.#db.transaction().execute(async (tx) => {
         // Comments on the account's videos go with them (foreign key cascade).
-        await tx.deleteFrom('video_post').where('author_did', '=', event.did).execute()
+        const posts = await tx
+          .deleteFrom('video_post')
+          .where('author_did', '=', did)
+          .returning('video_cid')
+          .execute()
+        await releaseMedia(
+          tx,
+          did,
+          posts.flatMap((row) => (row.video_cid === null ? [] : [row.video_cid])),
+        )
         const commented = await tx
           .deleteFrom('video_comment')
-          .where('author_did', '=', event.did)
+          .where('author_did', '=', did)
           .returning('subject_uri')
           .execute()
         const watched = await tx
           .deleteFrom('watch_event')
-          .where('actor_did', '=', event.did)
+          .where('actor_did', '=', did)
           .returning('subject_uri')
           .execute()
         const liked = await tx
           .deleteFrom('video_like')
-          .where('actor_did', '=', event.did)
+          .where('actor_did', '=', did)
           .returning('subject_uri')
           .execute()
         await refreshStats(
@@ -371,6 +466,34 @@ export class Indexer {
       return null
     }
   }
+}
+
+/**
+ * Queues renditions of an author's blobs for removal once no indexed post uses
+ * them: two posts can share an upload, and the renditions stay until the last
+ * one goes. The media service deletes them from storage and the CDN.
+ */
+async function releaseMedia(db: Kysely<Database>, did: string, videoCids: string[]): Promise<void> {
+  if (videoCids.length === 0) return
+  await purpose('Queue renditions of unused blobs for removal', () =>
+    db
+      .updateTable('video_media as m')
+      .set({ status: 'removing', claimed_at: null, updated_at: new Date() })
+      .where('m.author_did', '=', did)
+      .where('m.video_cid', 'in', [...new Set(videoCids)])
+      .where((eb) =>
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom('video_post as p')
+              .select('p.uri')
+              .whereRef('p.author_did', '=', 'm.author_did')
+              .whereRef('p.video_cid', '=', 'm.video_cid'),
+          ),
+        ),
+      )
+      .execute(),
+  )
 }
 
 /**

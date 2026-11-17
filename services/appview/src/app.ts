@@ -4,6 +4,7 @@ import { createServiceApp } from '@openreel/service-core'
 import type { Express, Request, Response } from 'express'
 import type { Kysely } from 'kysely'
 
+import { mountAdmin, type Takedowns } from './admin.ts'
 import { CommentsNotFoundError, getComments, InvalidCommentsCursorError } from './comments.ts'
 import { hydratePosts } from './hydrate.ts'
 import { SkeletonError, type SkeletonSource } from './skeleton.ts'
@@ -16,6 +17,10 @@ export interface AppViewDeps {
   skeleton: SkeletonSource
   defaultFeedUri: string
   mediaPublicUrl: string
+  /** Applies takedowns from `com.atproto.admin.updateSubjectStatus`. */
+  takedowns?: Takedowns
+  /** Password for the admin method; without it the method is not offered. */
+  adminPassword?: string
 }
 
 function xrpcError(res: Response, status: number, error: string, message: string): void {
@@ -133,6 +138,8 @@ export function createApp(deps: AppViewDeps): Express {
       xrpcError(res, 500, 'InternalServerError', 'failed to load comments')
     }
   })
+
+  if (deps.takedowns !== undefined) mountAdmin(app, deps.takedowns, deps.adminPassword)
 
   return app
 }
