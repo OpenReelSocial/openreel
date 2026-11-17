@@ -2,8 +2,8 @@
 
 Comments on videos, in the AT Protocol shape the rest of OpenReel uses: each
 comment is a record in the commenter's own repository, and the AppView indexes
-them from the firehose and serves them back. The iOS client and the Lexicons
-are done; the AppView side is not yet.
+them from the firehose and serves them back. The Lexicons, the iOS client, and
+the AppView are done; labels on comments wait for the labeler.
 
 ## Data model (Lexicons, done)
 
@@ -50,35 +50,43 @@ are done; the AppView side is not yet.
   still works and writes the record, so comments made now will appear once the
   AppView indexes them (given a backfill; see below).
 
-## Backend to do (AppView)
+## AppView
 
-1. **Index comments.** Handle `social.openreel.video.comment` creates and
-   deletes in the indexer, next to likes (`services/appview/src/indexer/`).
-   Validate the record against the Lexicon. Store it only if `subject` is an
-   indexed video post and any `parent` is an indexed top-level comment on that
-   same video; otherwise drop it. Suggested table: `video_comment(uri, cid,
-   author_did, subject_uri, parent_uri, text, record, created_at, indexed_at)`.
-2. **Counts.** Keep `comment_count` on the post's stats row and `reply_count`
-   per top-level comment. Hydrate `postView.commentCount`.
-3. **`getComments` endpoint** under `/appview/xrpc/`. Top-level comments
-   newest first, replies oldest first, cursor-paged. Hydrate the author handle
-   as `getFeed` does. Return `NotFound` for an unknown video.
-4. **Removals.** When a post is deleted or taken down, drop its comments. When
-   an account is removed (`#accountChanged` in `indexer.ts`, which already purges
-   posts and likes), purge its comments and fix the counts. Taken-down comments
-   (#120) must stop being served.
-5. **Labels** (once the labeler exists): attach `labels` to `commentView` for
-   the requested labelers, as for posts. Omit comments a `;redact` labeler hides.
-6. **Backfill (optional).** Comments written before the indexer handles them
-   are already in users' repositories. Re-reading repos, or replaying the
-   firehose from a cursor, picks them up.
-7. **Ranking (optional).** Comment counts are an engagement signal the feed
-   generator can use.
+- **Indexing** (`services/appview/src/indexer/`): creates, edits, and deletes of
+  `social.openreel.video.comment` are validated against the Lexicon and stored
+  in `video_comment` (migration `0004_comments`) only if `subject` is an indexed
+  video post and any `parent` is an indexed top-level comment on that same
+  video. Anything else is dropped, including a reply to a reply. An edit that
+  makes an indexed comment inadmissible removes it, and a top-level comment
+  edited into a reply takes its replies with it.
+- **Removals** follow from foreign keys: deleting a post (or purging its
+  account) drops its comments, and deleting a top-level comment drops its
+  replies. A removed account's own comments are purged with its likes and
+  watch events.
+- **Counts:** `video_post_stats.comment_count` (top-level and replies) is
+  recounted like `like_count` and hydrated as `postView.commentCount`.
+  `replyCount` is counted when a page is read.
+- **`social.openreel.video.getComments`** (`/appview/xrpc/` on the hosts):
+  top-level comments newest first, or with `parent` that comment's replies
+  oldest first, keyset-paged by `(sort_at, uri)`. `sort_at` is the earlier of
+  the record's `createdAt` and when it was first indexed, as for posts. An
+  unknown video or parent answers HTTP 404 `NotFound`; a bad cursor answers
+  400 `InvalidRequest`.
+- **Backfill:** the AppView's Jetstream cursor is keyed on the set of
+  collections it subscribes to, so adding a collection replays what Jetstream
+  still retains (24 hours by default). Older comments need a repository
+  re-read, which is not built.
+
+## Not done yet
+
+- **Labels:** attach `labels` to `commentView` for the requested labelers, as
+  for posts, and omit comments a `;redact` labeler hides (see `moderation.md`).
+- **Takedowns** of individual comments (#120).
+- **Ranking:** comment counts are an engagement signal the feed generator
+  could use.
 
 ## Trying it now
 
 Hold the heart on any reel → Comments → write one → send. The record lands in
-your repo; check with
-`com.atproto.repo.listRecords?repo=<your DID>&collection=social.openreel.video.comment`
-on your PDS. Until the AppView endpoint exists, the sheet shows the "not
-available yet" state with your comment from this session on top.
+your repo, and the sheet shows it once the AppView has indexed it, usually
+within a second.

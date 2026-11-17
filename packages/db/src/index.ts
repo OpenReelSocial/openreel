@@ -6,6 +6,7 @@ export {
   type GeneratedTimestamp,
   type SyncCursorTable,
   type Timestamp,
+  type VideoCommentTable,
   type VideoLikeTable,
   type VideoMediaStatus,
   type VideoMediaTable,

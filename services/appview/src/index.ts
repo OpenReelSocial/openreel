@@ -4,6 +4,7 @@ import { PlcResolver, serve } from '@openreel/service-core'
 import { createApp, DEFAULT_PORT, SERVICE_NAME } from './app.ts'
 import { readConfig } from './config.ts'
 import {
+  COMMENT_COLLECTION,
   Indexer,
   LIKE_COLLECTION,
   VIDEO_POST_COLLECTION,
@@ -17,7 +18,7 @@ const db = createDb(config.databaseUrl, queryTapOptions(SERVICE_NAME))
 
 const subscription = new JetstreamSubscription(
   config.jetstreamUrl,
-  [VIDEO_POST_COLLECTION, WATCH_EVENT_COLLECTION, LIKE_COLLECTION],
+  [VIDEO_POST_COLLECTION, WATCH_EVENT_COLLECTION, LIKE_COLLECTION, COMMENT_COLLECTION],
   db,
   new Indexer(db, new PlcResolver(config.plcUrl)),
 )
