@@ -73,8 +73,9 @@ service, and moderator review tool, beside the relay of ADR-0008.
 - **PLC at an origin root:** serve the private PLC read-only at
   `https://plc.dev.openreel.social` too, for the UI's browser-side lookups.
   The `/plc/` path stays for existing clients.
-- **Storage:** a separate `ozone` database in the existing Postgres container,
-  not a new database server.
+- **Storage:** an `ozone` schema in the existing Postgres database
+  (`OZONE_DB_POSTGRES_SCHEMA`), not a new database server. Backups already
+  dump that database, so they include it.
 - **Reports:** the PDSs set `PDS_REPORT_SERVICE_URL`/`DID` (and the matching
   `PDS_MOD_SERVICE_*`) to Ozone, so reports reach it with or without the
   client's proxy header. Moderators are accounts on our PDS listed in
@@ -95,6 +96,19 @@ service, and moderator review tool, beside the relay of ADR-0008.
   above is deployed.
 - **Classifier (layer 3):** when it exists, it files candidate labels as
   reports (or as Ozone events) so a moderator confirms them in the same queue.
+
+**Phase 1 (reports only).** Ozone first runs with no public hostname: the
+PDS forwards `createReport` to it over the Compose network
+(`PDS_REPORT_SERVICE_URL=http://ozone:3000`), which needs nothing to resolve
+its DID, and moderators list reports with `make aws-reports`. Ozone runs
+with `OZONE_DEV_MODE=true` in this phase: its DID resolver refuses `http:`
+URLs otherwise, and our PLC is `http://plc:8080` inside the host (its path
+under `https://dev.openreel.social/plc/` is no use, since the resolver drops
+path prefixes). Dev mode only replaces Ozone's SSRF-guarded fetches with
+plain ones; it relaxes no authentication. It goes back off once the PLC has
+its own HTTPS hostname. The hostname,
+the UI image, the PLC hostname, and the AppView changes follow as the review
+side is built out.
 
 The local Compose stack does not run Ozone at first. A labeler there needs a
 reachable `did:web` hostname, and the iOS client works without one.

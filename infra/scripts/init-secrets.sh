@@ -29,7 +29,7 @@ trap 'rm -rf "$scratch"' EXIT
 
 generate() {
   case $1 in
-    *PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX)
+    *PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX | OZONE_SIGNING_KEY_HEX)
       openssl ecparam -name secp256k1 -genkey -noout -outform DER \
         | tail -c +8 | head -c 32 | xxd -p -c 32 ;;
     *) openssl rand -hex 16 ;;
@@ -38,9 +38,12 @@ generate() {
 
 # PDS2_* belong to the optional second PDS (ADR-0008); unused until
 # PDS2_HOSTNAME is set, so generating them early is harmless.
+# OZONE_SIGNING_KEY_HEX signs Ozone's labels (ADR-0009); deploys start Ozone
+# once it exists.
 for key in POSTGRES_PASSWORD PLC_DB_PASSWORD PDS_JWT_SECRET PDS_ADMIN_PASSWORD \
   PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
-  PDS2_JWT_SECRET PDS2_ADMIN_PASSWORD PDS2_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX; do
+  PDS2_JWT_SECRET PDS2_ADMIN_PASSWORD PDS2_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX \
+  OZONE_SIGNING_KEY_HEX; do
   name="$path/$key"
   if aws ssm get-parameter --name "$name" --region "$region" >/dev/null 2>&1; then
     echo "exists:    $name"

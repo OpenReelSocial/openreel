@@ -272,6 +272,23 @@ account's events from the new PDS, and new posts appear as before.
 `make aws-backup` covers the first PDS only; the second one's volume
 (`pds2-data`) is not backed up yet.
 
+## Reports
+
+User reports (the iOS Report action) go to the PDS, which forwards them to
+Ozone, Bluesky's moderation service, over the Compose network (ADR-0009).
+Ozone keeps them in a review queue in the `ozone` schema of the AppView's
+Postgres database. It has no public hostname yet, so its web UI is not
+reachable; list the newest reports with
+
+```sh
+AWS_PROFILE=openreel-dev make aws-reports           # LIMIT=50 for more
+```
+
+and act on one with `make takedown` (below). Ozone runs once the
+`OZONE_SIGNING_KEY_HEX` parameter exists: run
+`AWS_PROFILE=openreel-dev infra/scripts/init-secrets.sh` once, then redeploy.
+Without it, deploys print a warning and reports are refused as before.
+
 ## Takedowns
 
 To take down an account or a single record (a video, a comment), for

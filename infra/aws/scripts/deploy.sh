@@ -54,6 +54,8 @@ fetch infra/aws/nginx/openreel-pds2.conf nginx-openreel-pds2.conf
 step "Rendering .env from $PARAMETER_PATH"
 umask 077
 env_tmp="$(mktemp "$dir/.env.XXXXXX")"
+# Optional Compose services to run (pds2, ozone), written once below.
+profiles=()
 trap 'rm -f "$env_tmp"' EXIT
 {
   echo "# Written by infra/aws/scripts/deploy.sh on every deploy; edits are lost."
@@ -70,7 +72,7 @@ trap 'rm -f "$env_tmp"' EXIT
   [[ -n "$MEDIA_PUBLIC_URL" ]] && echo "MEDIA_PUBLIC_URL=$MEDIA_PUBLIC_URL"
   if [[ -n "$PDS2_HOSTNAME" ]]; then
     echo "PDS2_HOSTNAME=$PDS2_HOSTNAME"
-    echo "COMPOSE_PROFILES=pds2"
+    profiles+=(pds2)
     echo "PDS_ALIASES=https://$PDS_HOSTNAME=http://pds:3000,https://$PDS2_HOSTNAME=http://pds2:3000"
   fi
   # Values are hex (infra/scripts/init-secrets.sh), so they need no quoting.
@@ -86,6 +88,20 @@ for key in "${secret_keys[@]}"; do
     exit 1
   }
 done
+# Ozone (ADR-0009) runs once its signing key exists; the PDS then forwards
+# reports to it. Until then reports are refused, as before.
+if grep -qE '^OZONE_SIGNING_KEY_HEX=.+' "$env_tmp"; then
+  profiles+=(ozone)
+  {
+    echo "PDS_REPORT_SERVICE_URL=http://ozone:3000"
+    echo "PDS_REPORT_SERVICE_DID=did:web:mod.$PDS_HOSTNAME"
+  } >>"$env_tmp"
+else
+  echo "warning: no $PARAMETER_PATH/OZONE_SIGNING_KEY_HEX; reports stay off (infra/scripts/init-secrets.sh)." >&2
+fi
+if ((${#profiles[@]})); then
+  (IFS=,; echo "COMPOSE_PROFILES=${profiles[*]}") >>"$env_tmp"
+fi
 mv "$env_tmp" .env
 trap - EXIT
 umask 022

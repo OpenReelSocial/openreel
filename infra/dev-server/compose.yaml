@@ -299,6 +299,10 @@ services:
       # there is nothing for the public Bluesky relay to crawl, and our own
       # relay is told what to crawl by deploy.sh (ADR-0008).
       LOG_ENABLED: 'true'
+      # Where createReport goes: Ozone over the Compose network (ADR-0009).
+      # deploy.sh sets both once Ozone runs; empty, reports are refused.
+      PDS_REPORT_SERVICE_URL: ${PDS_REPORT_SERVICE_URL:-}
+      PDS_REPORT_SERVICE_DID: ${PDS_REPORT_SERVICE_DID:-}
       PDS_JWT_SECRET: ${PDS_JWT_SECRET:?set PDS_JWT_SECRET in .env}
       PDS_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
       PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX:?set PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX in .env}
@@ -365,6 +369,58 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+  # Bluesky's moderation service (ADR-0009): receives the reports our PDS
+  # forwards and keeps them in a review queue. Reports only for now; it has no
+  # public hostname yet, so its DID document and web UI are not reachable, and
+  # moderators read reports with 'make aws-reports'. Runs with the ozone
+  # profile, which deploy.sh enables once OZONE_SIGNING_KEY_HEX exists.
+  ozone:
+    image: ghcr.io/bluesky-social/ozone:0.1.111
+    profiles: [ozone]
+    restart: unless-stopped
+    environment:
+      OZONE_PUBLIC_URL: https://mod.${PDS_HOSTNAME:?set PDS_HOSTNAME in .env}
+      OZONE_SERVER_DID: did:web:mod.${PDS_HOSTNAME}
+      # Its own schema in the AppView's database, so backups include it.
+      OZONE_DB_POSTGRES_URL: postgres://openreel:${POSTGRES_PASSWORD}@postgres:5432/openreel
+      OZONE_DB_POSTGRES_SCHEMA: ozone
+      OZONE_DB_MIGRATE: '1'
+      # Required settings; reports work without an app.bsky AppView behind them.
+      OZONE_APPVIEW_URL: http://appview:3001
+      OZONE_APPVIEW_DID: did:web:${PDS_HOSTNAME}
+      OZONE_DID_PLC_URL: http://plc:8080
+      # Ozone's DID resolver refuses http: URLs unless in dev mode, so verifying
+      # a reporter against our PLC (http://plc:8080) fails without it. Dev mode
+      # only swaps Ozone's SSRF-guarded fetches for plain fetch; it relaxes no
+      # authentication, and Ozone has no public address. Off once the PLC has
+      # its own HTTPS hostname (ADR-0009, later phases).
+      OZONE_DEV_MODE: 'true'
+      # Request and error logs, as the PDS's; otherwise Ozone logs nothing.
+      LOG_ENABLED: 'true'
+      # Same operator credential as the PDS, relay, and AppView admin methods.
+      OZONE_ADMIN_PASSWORD: ${PDS_ADMIN_PASSWORD:?set PDS_ADMIN_PASSWORD in .env}
+      # Not ':?': Compose interpolates profiled-off services too.
+      OZONE_SIGNING_KEY_HEX: ${OZONE_SIGNING_KEY_HEX:-}
+    ports:
+      - '127.0.0.1:4110:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/xrpc/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Bluesky's relay (ADR-0008): subscribes to every PDS deploy.sh asks it to
   # crawl, keeps only events from the PDS each account's DID document names
