@@ -132,6 +132,10 @@ seed-videos: ## Upload demo videos to the PDS and wait until they play in the fe
 seed-likes: ## Like the feed's videos from demo accounts so Popular has an order
 	node scripts/seed-likes.mjs
 
+.PHONY: migrate-account
+migrate-account: ## Move MIGRATE_HANDLE from OLD_PDS_URL to NEW_PDS_URL (run twice: token, then PLC_TOKEN=)
+	node scripts/migrate-account.mjs
+
 .PHONY: takedown
 takedown: ## Take down SUBJECT (a DID or AT-URI) on the PDS and AppView; REVERSE=1 lifts it
 	node scripts/takedown.mjs
@@ -167,6 +171,10 @@ infra-diff: ## Compare the AWS CDK app with what is deployed (needs AWS_PROFILE)
 
 # Backups of the AWS host (#111): run on the host through SSM with the
 # operator's credentials (AWS_PROFILE). infra/README.md has the procedure.
+.PHONY: aws-plc-token
+aws-plc-token: ## Print the PLC token the AWS PDS issued to DID= for migrate-account (needs AWS_PROFILE)
+	infra/scripts/host-run.sh infra/aws/scripts/plc-token.sh DID=$(DID) SERVICE=$(or $(SERVICE),pds)
+
 .PHONY: aws-backup
 aws-backup: ## Back up the AWS host's PDS, PLC, and AppView data to S3 (needs AWS_PROFILE)
 	infra/scripts/host-run.sh infra/aws/scripts/backup.sh \
