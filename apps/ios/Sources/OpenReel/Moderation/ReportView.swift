@@ -136,8 +136,9 @@ struct ReportView: View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 48, weight: .light))
-            Text("Thanks for reporting")
+            Text("Thanks for keeping OpenReel safe.")
                 .font(.title3.weight(.bold))
+                .multilineTextAlignment(.center)
             Text("Moderators will review it. Reports are private; \(authorHandle) isn't told who sent one.")
                 .font(.subheadline)
                 .foregroundStyle(MonoTheme.secondary)
