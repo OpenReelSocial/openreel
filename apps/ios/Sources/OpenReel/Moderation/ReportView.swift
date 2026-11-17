@@ -1,18 +1,47 @@
 import OpenReelATProto
 import SwiftUI
 
-/// Reports a reel or its author (`com.atproto.moderation.createReport`).
-/// Opened from the reel's action fan.
+/// Something the viewer can report, with how to describe it.
+struct ReportTarget: Hashable {
+    let title: String
+    let subject: ReportSubject
+
+    static func video(_ reel: Reel) -> ReportTarget {
+        ReportTarget(title: "This video", subject: .record(reel.strongRef))
+    }
+
+    static func account(did: String, handle: String) -> ReportTarget {
+        ReportTarget(title: handle, subject: .account(did: did))
+    }
+}
+
+/// Reports a reel, a comment, or an author
+/// (`com.atproto.moderation.createReport`). Opened from the reel's action fan
+/// and from a comment's menu.
 struct ReportView: View {
-    let reel: Reel
+    /// What the viewer can choose to report, the first selected.
+    let targets: [ReportTarget]
+    /// Who is reported, for the confirmation.
+    let authorHandle: String
     let moderation: ModerationController
 
-    private enum Subject: Hashable {
-        case video, account
+    init(targets: [ReportTarget], authorHandle: String, moderation: ModerationController) {
+        self.targets = targets
+        self.authorHandle = authorHandle
+        self.moderation = moderation
+        _selection = State(initialValue: targets.first)
+    }
+
+    init(reel: Reel, moderation: ModerationController) {
+        self.init(
+            targets: [.video(reel), .account(did: reel.authorDID, handle: reel.authorHandle)],
+            authorHandle: reel.authorHandle,
+            moderation: moderation
+        )
     }
 
     @Environment(\.dismiss) private var dismiss
-    @State private var subject = Subject.video
+    @State private var selection: ReportTarget?
     @State private var reason: ReportReason?
     @State private var details = ""
     @State private var isSending = false
@@ -55,13 +84,16 @@ struct ReportView: View {
 
     private var form: some View {
         Form {
-            Section("What are you reporting?") {
-                Picker("Subject", selection: $subject) {
-                    Text("This video").tag(Subject.video)
-                    Text(reel.authorHandle).tag(Subject.account)
+            if targets.count > 1 {
+                Section("What are you reporting?") {
+                    Picker("Subject", selection: $selection) {
+                        ForEach(targets, id: \.self) { target in
+                            Text(target.title).tag(Optional(target))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
             }
 
             Section("What's wrong with it?") {
@@ -107,7 +139,7 @@ struct ReportView: View {
             Text("Thanks for keeping OpenReel safe.")
                 .font(.title3.weight(.bold))
                 .multilineTextAlignment(.center)
-            Text("Moderators will review it. Reports are private; \(reel.authorHandle) isn't told who sent one.")
+            Text("Moderators will review it. Reports are private; \(authorHandle) isn't told who sent one.")
                 .font(.subheadline)
                 .foregroundStyle(MonoTheme.secondary)
                 .multilineTextAlignment(.center)
@@ -124,11 +156,7 @@ struct ReportView: View {
     }
 
     private func send() {
-        guard let reason else { return }
-        let target: ReportSubject = switch subject {
-        case .video: .record(reel.strongRef)
-        case .account: .account(did: reel.authorDID)
-        }
+        guard let reason, let target = selection?.subject else { return }
         isSending = true
         errorMessage = nil
         Task {

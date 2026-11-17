@@ -35,10 +35,40 @@
           "description": "Number of accounts the AppView has seen like the post (social.openreel.engagement.like records).",
           "minimum": 0
         },
+        "commentCount": {
+          "type": "integer",
+          "description": "Number of comments (top-level and replies) the AppView has indexed on the post (social.openreel.video.comment records).",
+          "minimum": 0
+        },
         "indexedAt": { "type": "string", "format": "datetime" },
         "labels": {
           "type": "array",
           "description": "Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them.",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        }
+      }
+    },
+    "commentView": {
+      "type": "object",
+      "description": "A comment hydrated by an AppView.",
+      "required": ["uri", "cid", "author", "record", "indexedAt"],
+      "properties": {
+        "uri": { "type": "string", "format": "at-uri" },
+        "cid": { "type": "string", "format": "cid" },
+        "author": { "type": "ref", "ref": "#authorView" },
+        "record": {
+          "type": "unknown",
+          "description": "The social.openreel.video.comment record as stored in the author's repository."
+        },
+        "replyCount": {
+          "type": "integer",
+          "description": "Replies the AppView has indexed. Only set on top-level comments.",
+          "minimum": 0
+        },
+        "indexedAt": { "type": "string", "format": "datetime" },
+        "labels": {
+          "type": "array",
+          "description": "Moderation labels on the comment or its author, as on postView.",
           "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
         }
       }

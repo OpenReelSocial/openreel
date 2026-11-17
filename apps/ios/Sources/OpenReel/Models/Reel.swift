@@ -21,6 +21,9 @@ struct Reel: Identifiable, Hashable {
     /// Likes as the AppView last counted them; `LikeStore` adds the viewer's
     /// own change until the AppView catches up.
     let likeCount: Int
+    /// Comments as the AppView last counted them; 0 from an AppView that
+    /// does not count them.
+    let commentCount: Int
     let accessibilityLabel: String?
     /// Labels that apply to the post: the AppView's (from the labelers the
     /// app subscribes to) and the author's own content warnings.
@@ -41,6 +44,7 @@ struct Reel: Identifiable, Hashable {
         aspectRatio = post.aspectRatio?.value
         durationMs = post.durationMs ?? post.record?.durationMs
         likeCount = post.likeCount ?? 0
+        commentCount = post.commentCount ?? 0
         accessibilityLabel = post.record?.alt
         moderationCauses = ModerationPolicy.causes(
             labels: post.labels,

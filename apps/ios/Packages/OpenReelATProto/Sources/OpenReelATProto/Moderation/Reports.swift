@@ -13,7 +13,7 @@ public enum ReportReason: String, CaseIterable, Sendable, Identifiable {
 }
 
 /// What a report is about: one post, or a whole account.
-public enum ReportSubject: Sendable, Equatable {
+public enum ReportSubject: Sendable, Hashable {
     /// `com.atproto.repo.strongRef`.
     case record(StrongRef)
     /// `com.atproto.admin.defs#repoRef`.

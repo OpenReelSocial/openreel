@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.video.comment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A comment on a video, written to the commenter's own repository; deleting the record removes the comment. Like other repository records it is public. Threads are one level deep: a reply points at the top-level comment it belongs to, and replying to a reply points at that same top-level comment.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "text", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "description": "The social.openreel.video.post the comment is on, pinned to the version seen.",
+            "ref": "com.atproto.repo.strongRef"
+          },
+          "parent": {
+            "type": "ref",
+            "description": "The top-level social.openreel.video.comment on the same video that this replies to. Omitted for a top-level comment.",
+            "ref": "com.atproto.repo.strongRef"
+          },
+          "text": {
+            "type": "string",
+            "description": "The comment's text.",
+            "minLength": 1,
+            "maxGraphemes": 300,
+            "maxLength": 3000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Client-declared timestamp when the comment was written.",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

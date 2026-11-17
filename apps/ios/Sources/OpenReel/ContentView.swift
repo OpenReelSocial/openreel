@@ -55,7 +55,12 @@ struct ContentView: View {
         ) { tab in
             switch tab {
             case .home:
-                FeedView(store: feed, playback: playback, likes: likes)
+                FeedView(
+                    store: feed,
+                    playback: playback,
+                    likes: likes,
+                    comments: CommentsFactory(appView: Backend.current.appViewClient(), auth: auth, moderation: moderation)
+                )
             case .create:
                 CreateView(store: posts, auth: auth) { uri in
                     selectedTab = .home

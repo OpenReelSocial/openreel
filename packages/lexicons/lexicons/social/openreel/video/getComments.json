@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "social.openreel.video.getComments",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get the comments on a video from an AppView: its top-level comments, or with 'parent' the replies to one of them. Comments the AppView has not indexed, or whose author or record was taken down, are omitted. Ordering is the AppView's choice; the reference AppView returns top-level comments newest first and replies oldest first.",
+      "parameters": {
+        "type": "params",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "AT-URI of the social.openreel.video.post.",
+            "format": "at-uri"
+          },
+          "parent": {
+            "type": "string",
+            "description": "AT-URI of a top-level comment on the video; returns its replies instead of the top-level comments.",
+            "format": "at-uri"
+          },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["comments"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "comments": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "social.openreel.video.defs#commentView" }
+            }
+          }
+        }
+      },
+      "errors": [{ "name": "NotFound", "description": "The video is not indexed or was removed." }]
+    }
+  }
+}

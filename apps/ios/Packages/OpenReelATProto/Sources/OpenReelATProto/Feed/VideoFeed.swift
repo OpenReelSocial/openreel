@@ -18,6 +18,9 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
     /// Accounts the AppView has seen like the post; `nil` from an AppView
     /// that does not count likes.
     public let likeCount: Int?
+    /// Comments the AppView has indexed; `nil` from an AppView that does not
+    /// count them.
+    public let commentCount: Int?
     public let indexedAt: String
     /// Labels the AppView attached for the post or its author, from the
     /// labelers the request asked for (`atproto-accept-labelers`). Empty from
@@ -36,6 +39,7 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         aspectRatio: VideoAspectRatio? = nil,
         durationMs: Int? = nil,
         likeCount: Int? = nil,
+        commentCount: Int? = nil,
         indexedAt: String,
         labels: [ATLabel] = []
     ) {
@@ -48,12 +52,13 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         self.aspectRatio = aspectRatio
         self.durationMs = durationMs
         self.likeCount = likeCount
+        self.commentCount = commentCount
         self.indexedAt = indexedAt
         self.labels = labels
     }
 
     private enum CodingKeys: String, CodingKey {
-        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, likeCount, indexedAt, labels
+        case uri, cid, author, record, playlist, thumbnail, aspectRatio, durationMs, likeCount, commentCount, indexedAt, labels
     }
 
     public init(from decoder: Decoder) throws {
@@ -67,6 +72,7 @@ public struct VideoPostView: Decodable, Sendable, Equatable, Identifiable {
         aspectRatio = try? container.decodeIfPresent(VideoAspectRatio.self, forKey: .aspectRatio)
         durationMs = try? container.decodeIfPresent(Int.self, forKey: .durationMs)
         likeCount = try? container.decodeIfPresent(Int.self, forKey: .likeCount)
+        commentCount = try? container.decodeIfPresent(Int.self, forKey: .commentCount)
         indexedAt = try container.decode(String.self, forKey: .indexedAt)
         // One malformed label drops that label, not the post.
         labels = (try? container.decodeIfPresent([Lenient<ATLabel>].self, forKey: .labels))?
@@ -214,6 +220,12 @@ public struct AppViewClient: Sendable {
         self.labelers = labelers
     }
 
+    /// A read that carries `atproto-accept-labelers`, so the AppView attaches
+    /// the subscribed labelers' labels.
+    func query<Output: Decodable>(_ nsid: String, parameters: [String: String], as type: Output.Type) async throws -> Output {
+        try await xrpc.query(nsid, parameters: parameters, headers: headers, as: type)
+    }
+
     private var headers: [String: String] {
         LabelerSubscription.headerValue(labelers).map { [LabelerSubscription.acceptLabelersHeader: $0] } ?? [:]
     }
@@ -229,7 +241,7 @@ public struct AppViewClient: Sendable {
         if let feed { parameters["feed"] = feed }
         if let limit { parameters["limit"] = String(limit) }
         if let cursor { parameters["cursor"] = cursor }
-        return try await xrpc.query(Self.getFeedNSID, parameters: parameters, headers: headers, as: VideoFeedPage.self)
+        return try await query(Self.getFeedNSID, parameters: parameters, as: VideoFeedPage.self)
     }
 
     /// The feeds this AppView offers, default first, with how each ranks.

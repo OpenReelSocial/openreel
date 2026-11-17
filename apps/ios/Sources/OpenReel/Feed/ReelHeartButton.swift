@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The secondary actions tucked behind the heart, nearest the heart first.
 enum ReelAction: CaseIterable, Identifiable {
-    case reply
+    case comments
     case repost
     case share
     case showLess
@@ -12,7 +12,7 @@ enum ReelAction: CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .reply: "Reply"
+        case .comments: "Comments"
         case .repost: "Repost"
         case .share: "Share"
         case .showLess: "Show less"
@@ -22,7 +22,7 @@ enum ReelAction: CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .reply: "bubble.right"
+        case .comments: "bubble.right"
         case .repost: "arrow.2.squarepath"
         case .share: "square.and.arrow.up"
         case .showLess: "eye.slash"
@@ -36,7 +36,7 @@ enum ReelAction: CaseIterable, Identifiable {
 /// Tap it to like. Touch and hold, or start sliding up, to fan the other
 /// actions out above it; slide onto one and let go to choose it, or let go
 /// anywhere else to cancel. VoiceOver gets the same actions as a list.
-/// Liking and reporting are wired up; the other actions are not yet.
+/// Liking, comments, and reporting are wired up; the other actions are not yet.
 struct ReelHeartButton: View {
     let isLiked: Bool
     var onToggleLike: () -> Void = {}

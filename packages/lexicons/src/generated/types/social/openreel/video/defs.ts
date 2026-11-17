@@ -33,6 +33,8 @@ export interface PostView {
   durationMs?: number
   /** Number of accounts the AppView has seen like the post (social.openreel.engagement.like records). */
   likeCount?: number
+  /** Number of comments (top-level and replies) the AppView has indexed on the post (social.openreel.video.comment records). */
+  commentCount?: number
   indexedAt: string
   /** Moderation labels on the post or its author from the labelers the request asked for (atproto-accept-labelers), plus the author's self-labels. Retracted (neg) and expired labels may be included; clients resolve them. */
   labels?: ComAtprotoLabelDefs.Label[]
@@ -46,6 +48,31 @@ export function isPostView<V>(v: V) {
 
 export function validatePostView<V>(v: V) {
   return validate<PostView & V>(v, id, hashPostView)
+}
+
+/** A comment hydrated by an AppView. */
+export interface CommentView {
+  $type?: 'social.openreel.video.defs#commentView'
+  uri: string
+  cid: string
+  author: AuthorView
+  /** The social.openreel.video.comment record as stored in the author's repository. */
+  record: { [_ in string]: unknown }
+  /** Replies the AppView has indexed. Only set on top-level comments. */
+  replyCount?: number
+  indexedAt: string
+  /** Moderation labels on the comment or its author, as on postView. */
+  labels?: ComAtprotoLabelDefs.Label[]
+}
+
+const hashCommentView = 'commentView'
+
+export function isCommentView<V>(v: V) {
+  return is$typed(v, id, hashCommentView)
+}
+
+export function validateCommentView<V>(v: V) {
+  return validate<CommentView & V>(v, id, hashCommentView)
 }
 
 export interface AuthorView {

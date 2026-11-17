@@ -8,10 +8,13 @@ struct FeedView: View {
     let store: FeedStore
     let playback: FeedPlaybackController
     let likes: LikeStore
+    /// Builds a reel's comment section; `nil` in previews.
+    var comments: CommentsFactory?
 
     @State private var visibleReelID: String?
     @State private var isChoosingFeed = false
     @State private var reportingReel: Reel?
+    @State private var commentingReel: Reel?
     /// The 2× badge is briefly confirming a lock; see `isShowingSpeedBadge`.
     @State private var isConfirmingSpeedLock = false
     /// 2× was locked during the current hold, as opposed to a hold that began
@@ -56,6 +59,16 @@ struct FeedView: View {
         .sheet(item: $reportingReel) { reel in
             ReportView(reel: reel, moderation: store.moderation)
                 .preferredColorScheme(.dark)
+        }
+        // The reel keeps playing above the comments, as in other short-video apps.
+        .sheet(item: $commentingReel) { reel in
+            if let comments {
+                CommentsView(store: comments.store(for: reel))
+                    .presentationDetents([.fraction(0.65), .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(MonoTheme.background)
+                    .preferredColorScheme(.dark)
+            }
         }
         .onChange(of: isShowingSheet) { _, isShown in
             if isShown {
@@ -107,9 +120,11 @@ struct FeedView: View {
 
     private func perform(_ action: ReelAction, on reel: Reel) {
         switch action {
+        case .comments:
+            if comments != nil { commentingReel = reel }
         case .report:
             reportingReel = reel
-        case .reply, .repost, .share, .showLess:
+        case .repost, .share, .showLess:
             break
         }
     }

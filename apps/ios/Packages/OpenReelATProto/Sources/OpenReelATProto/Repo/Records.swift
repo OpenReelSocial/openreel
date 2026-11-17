@@ -1,7 +1,7 @@
 import Foundation
 
 /// `com.atproto.repo.strongRef`: a record pinned to one version.
-public struct StrongRef: Codable, Sendable, Equatable {
+public struct StrongRef: Codable, Sendable, Hashable {
     public let uri: String
     public let cid: String
 

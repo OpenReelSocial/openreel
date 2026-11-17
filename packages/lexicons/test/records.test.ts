@@ -11,17 +11,20 @@ import {
   SocialOpenreelEngagementWatchEvent,
   SocialOpenreelFeedDefs,
   SocialOpenreelFeedGenerator,
+  SocialOpenreelVideoComment,
   SocialOpenreelVideoPost,
   ids,
   lexicons,
 } from '../src/index.ts'
 import {
   blob,
+  comment,
   completionRate,
   feedGenerator,
   generatorView,
   like,
   sampleCid,
+  sampleCommentUri,
   sampleDid,
   samplePostUri,
   videoPost,
@@ -180,6 +183,79 @@ describe(ids.SocialOpenreelEngagementLike, () => {
   })
 })
 
+describe(ids.SocialOpenreelVideoComment, () => {
+  const nsid = ids.SocialOpenreelVideoComment
+
+  it('accepts a top-level comment and a reply', () => {
+    const reply = { ...comment(), parent: { uri: sampleCommentUri, cid: sampleCid } }
+    for (const record of [comment(), reply]) {
+      expect(() => lexicons.assertValidRecord(nsid, record)).not.toThrow()
+      expect(SocialOpenreelVideoComment.validateRecord(record).success).toBe(true)
+    }
+  })
+
+  it.each<Mutation>([
+    ['missing subject', (r) => delete r['subject']],
+    ['subject without cid', (r) => (r['subject'] = { uri: samplePostUri })],
+    ['parent without cid', (r) => (r['parent'] = { uri: sampleCommentUri })],
+    ['missing text', (r) => delete r['text']],
+    ['empty text', (r) => (r['text'] = '')],
+    ['text over 300 graphemes', (r) => (r['text'] = 'a'.repeat(301))],
+    ['missing createdAt', (r) => delete r['createdAt']],
+    badDatetime,
+  ])('rejects %s', (_name, mutate) => {
+    const record: Record<string, unknown> = comment()
+    mutate(record)
+    expectRejected(nsid, record)
+    expect(SocialOpenreelVideoComment.validateRecord(record).success).toBe(false)
+  })
+})
+
+describe(ids.SocialOpenreelVideoGetComments, () => {
+  const commentView = (extra: Record<string, unknown> = {}) => ({
+    uri: sampleCommentUri,
+    cid: sampleCid,
+    author: { did: sampleDid, handle: 'alice.openreel.social' },
+    record: lexToJson(comment()),
+    indexedAt: '2026-09-15T12:07:01.000Z',
+    ...extra,
+  })
+  const valid = (view: Record<string, unknown>) => {
+    try {
+      lexicons.assertValidXrpcOutput(ids.SocialOpenreelVideoGetComments, { comments: [view] })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('returns comment views with and without counts and labels', () => {
+    expect(valid(commentView())).toBe(true)
+    expect(valid(commentView({ replyCount: 3 }))).toBe(true)
+    const label = {
+      src: sampleDid,
+      uri: sampleCommentUri,
+      val: 'spam',
+      cts: '2026-09-15T12:08:00.000Z',
+    }
+    expect(valid(commentView({ labels: [label] }))).toBe(true)
+  })
+
+  it('rejects a negative reply count and a view without an author', () => {
+    expect(valid(commentView({ replyCount: -1 }))).toBe(false)
+    expect(valid(commentView({ author: undefined }))).toBe(false)
+  })
+
+  it('requires the video URI', () => {
+    expect(() =>
+      lexicons.assertValidXrpcParams(ids.SocialOpenreelVideoGetComments, { limit: 10 }),
+    ).toThrow()
+    expect(() =>
+      lexicons.assertValidXrpcParams(ids.SocialOpenreelVideoGetComments, { uri: samplePostUri }),
+    ).not.toThrow()
+  })
+})
+
 describe(ids.SocialOpenreelEngagementCompletionRate, () => {
   const nsid = ids.SocialOpenreelEngagementCompletionRate
 
@@ -319,6 +395,18 @@ describe(ids.SocialOpenreelFeedGetFeed, () => {
   it('rejects a negative or fractional like count', () => {
     expect(valid(postView({ likeCount: -1 }))).toBe(false)
     expect(valid(postView({ likeCount: 1.5 }))).toBe(false)
+  })
+
+  it('accepts a comment count and moderation labels', () => {
+    expect(valid(postView({ commentCount: 12 }))).toBe(true)
+    expect(valid(postView({ commentCount: -1 }))).toBe(false)
+    const label = {
+      src: sampleDid,
+      uri: samplePostUri,
+      val: 'nsfw',
+      cts: '2026-09-15T12:08:00.000Z',
+    }
+    expect(valid(postView({ labels: [label] }))).toBe(true)
   })
 })
 
